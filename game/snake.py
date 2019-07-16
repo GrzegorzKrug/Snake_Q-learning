@@ -2,39 +2,39 @@ import pygame
 from pygame.locals import *
 import time
 
-class Player:
-    def __init__(self):
-        self.x = 10
-        self.y = 10
-        self.speed = 1
-        self.direction = 0
-
-    # def update(self):
-        # if self.direction == 0
-
-    def moveRight(self):
-        self.x += self.speed
-
-    def moveLeft(self):
-        self.x -= self.speed
-
-    def moveUp(self):
-        self.y += self.speed
-
-    def moveDown(self):
-        self.y -= self.speed
-
-
-def deco_init_quit(fun):
-    def wrapper(*args, **kwargs):
-        pygame.init()
-        out = fun(*args, **kwargs)
-        pygame.quit()
-        print('Quit')
-        return out
-    return wrapper
-
+# class Player:
+#     def __init__(self):
+#         self.x = 10
+#         self.y = 10
+#         self.speed = 1
+#         self.direction = 0
+#
+#     # def update(self):
+#         # if self.direction == 0
+#
+#     def moveRight(self):
+#         self.x += self.speed
+#
+#     def moveLeft(self):
+#         self.x -= self.speed
+#
+#     def moveUp(self):
+#         self.y += self.speed
+#
+#     def moveDown(self):
+#         self.y -= self.speed
+#
+#
+# def deco_init_quit(fun):
+#     def wrapper(*args, **kwargs):
+#         pygame.init()
+#         out = fun(*args, **kwargs)
+#         pygame.quit()
+#         print('Quit')
+#         return out
+#     return wrapper
 # @deco_init_quit
+
 class Game:
     def __init__(self, width=1.4e3, height=8e2):
         pygame.init()
