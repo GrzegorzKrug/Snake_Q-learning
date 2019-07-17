@@ -108,7 +108,7 @@ class Game:
                 pygame.draw.rect(self.screen, (35,120,50), (tail[0], tail[1], self.rect_size, self.rect_size))
             pygame.draw.rect(self.screen, color, (self.x, self.y, self.rect_size, self.rect_size))
             
-            self.food_event(False, self.tail_len)            
+            self.food_event(True, self.tail_len)            
             for food in self.food:
                 pygame.draw.rect(self.screen, (0, 255, 0), (food[0], food[1], self.rect_size, self.rect_size))
 
