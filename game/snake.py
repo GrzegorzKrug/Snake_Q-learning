@@ -230,8 +230,6 @@ class Game:
                 self.y = self.height - self.rect_size
         return hit
 
-print('Hello World')
-#
 G1 = Game()
 G1.play()
 
