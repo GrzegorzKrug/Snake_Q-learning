@@ -114,7 +114,6 @@ class Game:
 
         time.sleep(3)
         pygame.display.quit()
-
         
     def display_score(self):
         myfont = pygame.font.SysFont('Comic Sans MS', 30)
