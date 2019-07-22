@@ -54,20 +54,17 @@ class Game:
         self.x = (width / 2) // self.rect_size * self.rect_size
         self.y = (height / 2) // self.rect_size * self.rect_size
 
-        self.tail_len = 50
+        self.tail_len = 100
         self.tail = [[self.x, self.y]]
 
         self.food = []
-##        
+
     def __del__(self):
-        # print('Deleted')
-##        pygame.display.quit()
-##        self.scree.quit()
         pygame.quit()
-##        exit()
 
     def play(self):
         f_run = True
+        self.food_event(True, self.tail_len)
         while f_run:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -88,7 +85,7 @@ class Game:
             # Moving Section
             self.move_snake()
             hit1 = self.check_border()
-            hit2 = self.check_collision(self.x, self.y)
+            hit2 = self.check_collision_with_obstacles(self.x, self.y)
             if hit1 or hit2:
                 f_run = False  # <<---- Collision, Disable loop
                 if hit2:
@@ -103,12 +100,11 @@ class Game:
             
             # Drawing Section --------
             self.screen.fill((30, 30, 50))
-            pygame.draw.rect(self.screen, (35,50,50), (self.tail[0][0], self.tail[0][1], self.rect_size, self.rect_size))
+            pygame.draw.rect(self.screen, (0, 50, 10), (self.tail[0][0], self.tail[0][1], self.rect_size, self.rect_size))  # last tail piece
             for tail in self.tail[1:]:
-                pygame.draw.rect(self.screen, (35,120,50), (tail[0], tail[1], self.rect_size, self.rect_size))
+                pygame.draw.rect(self.screen, (35, 120, 50), (tail[0], tail[1], self.rect_size, self.rect_size))
             pygame.draw.rect(self.screen, color, (self.x, self.y, self.rect_size, self.rect_size))
-            
-            self.food_event(True, self.tail_len)            
+
             for food in self.food:
                 pygame.draw.rect(self.screen, (0, 255, 0), (food[0], food[1], self.rect_size, self.rect_size))
 
@@ -118,23 +114,24 @@ class Game:
 
         time.sleep(3)
         pygame.display.quit()
-##        pygame.quit()
+
         
     def display_score(self):
         myfont = pygame.font.SysFont('Comic Sans MS', 30)
-        textsurface = myfont.render('Score = ' + str(self.score), False, (255, 255, 255))
-        self.screen.blit(textsurface,(0,0))
+        textSurface = myfont.render('Score = ' + str(self.score), False, (255, 255, 255))
+        self.screen.blit(textSurface,(0,0))
         
     def eat_food(self):
         for i, food in enumerate(self.food):
-            if self.check_food_collision(food[0], food[1]):
+            if self.check_collision_with_snake(food[0], food[1]):
                 self.food.pop(i)
                 self.tail_len += 1
                 self.score += 1
+                self.place_food()
                 break
     
-    def food_event(self, multiFood=False, n=10):        
-        if multiFood and len(self.food) < n\
+    def food_event(self, multi_food=True, n=10):
+        while multi_food and len(self.food) < n\
            or len(self.food) < 1:
             self.place_food()                            
                 
@@ -144,19 +141,24 @@ class Game:
             rx, ry = round(rx // self.rect_size * self.rect_size),\
                      round(ry // self.rect_size * self.rect_size)
 
-            if self.check_food_collision(rx, ry):
+            if self.check_collision_with_food(rx, ry):
                 continue
             break    
         self.food += [[rx, ry]]
 
-
-    def check_food_collision(self, x, y):
+    def check_collision_with_snake(self, x, y):
         for pos in self.tail:
-            if [x, y] == pos:                
+            if [x, y] == pos:
+                return True
+        return False
+
+    def check_collision_with_food(self, x, y):
+        for pos in self.food:
+            if [x, y] == pos:
                 return True
         return False
     
-    def check_collision(self, x, y):
+    def check_collision_with_obstacles(self, x, y):
         for pos in self.tail[1:-1]:
             if [x, y] == pos:
                 # self.speed_multiplier = 0
@@ -213,8 +215,8 @@ class Game:
                 hit = True
             elif self.y < 0:
                 self.y = 0
-                hit = True
-             # if colision with wall return hit
+                hit = True  # if colision with wall return hit
+
         else:  # Screen edge is borderless (Continuous world)
             # Checking X values in proper range
             if self.x >= self.width:
@@ -228,8 +230,11 @@ class Game:
                 self.y = self.height - self.rect_size
         return hit
 
+print('Hello World')
+#
 G1 = Game()
 G1.play()
 
 print('Score = ', G1.score)
-input('Bye....')
+time.sleep(5)
+# input('Bye....')
