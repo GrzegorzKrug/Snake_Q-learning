@@ -232,6 +232,6 @@ class Game:
 G1 = Game()
 G1.play()
 
-print('Score = ', G1.score)
-time.sleep(5)
+# print('Score = ', G1.score)
+# time.sleep(5)
 # input('Bye....')
