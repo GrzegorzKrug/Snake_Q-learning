@@ -64,31 +64,14 @@ class Game:
 
     def play(self):
         f_run = True
-        self.food_event(True, 1)
+        self.food_refill(True, 1)
         while f_run:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     f_run = False
                     break
 
-            time0 = time.time()
-            while time.time() - time0 < self.move_time:  # TIME FRAME FOR INPUT
-                # Keyboard Input section
-                keys = pygame.key.get_pressed()
-                if keys[pygame.K_LEFT] and self.direction != 1:
-                    self.direction = 3
-                    break
-                elif keys[pygame.K_RIGHT] and self.direction != 3:
-                    self.direction = 1
-                    break
-                elif keys[pygame.K_UP] and self.direction != 2:
-                    self.direction = 0
-                    break
-                elif keys[pygame.K_DOWN] and self.direction != 0:
-                    self.direction = 2
-                    break
-
-            time.sleep(self.move_time + 0.02 - (time.time() - time0))  # Sleep rest of timeframe
+            self.player_input()  # Capture keyboard and move
 
             # Moving Section
             self.move_snake()
@@ -117,8 +100,7 @@ class Game:
                 pygame.draw.rect(self.screen, (0, 255, 0), (food[0], food[1], self.rect_size, self.rect_size))
 
             self.display_score()
-            pygame.display.update()              
-
+            pygame.display.update()
 
         time.sleep(3)
         pygame.display.quit()
@@ -137,7 +119,7 @@ class Game:
                 self.place_food()
                 break
     
-    def food_event(self, multi_food=False, n=1):
+    def food_refill(self, multi_food=False, n=1):
         while multi_food and len(self.food) < n\
            or len(self.food) < 1:
             self.place_food()                            
@@ -236,6 +218,26 @@ class Game:
             elif self.y < 0:
                 self.y = self.height - self.rect_size
         return hit
+
+    def player_input(self):
+        time0 = time.time()
+        while time.time() - time0 < self.move_time:  # TIME FRAME FOR INPUT
+            # Keyboard Input section
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LEFT] and self.direction != 1:
+                self.direction = 3
+                break
+            elif keys[pygame.K_RIGHT] and self.direction != 3:
+                self.direction = 1
+                break
+            elif keys[pygame.K_UP] and self.direction != 2:
+                self.direction = 0
+                break
+            elif keys[pygame.K_DOWN] and self.direction != 0:
+                self.direction = 2
+                break
+        time.sleep(self.move_time + 0.02 - (time.time() - time0))  # Sleep rest of timeframe
+
 
 G1 = Game()
 G1.play()
