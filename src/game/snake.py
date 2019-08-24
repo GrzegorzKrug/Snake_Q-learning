@@ -44,7 +44,7 @@ class Game:
         
         self.size = self.width, self.height = width, height
         self.screen = pygame.display.set_mode(self.size)
-    
+        self.move_time = 0.08
         self.score = 0
         
         self.rect_size = 25
@@ -71,16 +71,24 @@ class Game:
                     f_run = False
                     break
 
-            # Keyboard Input section
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_LEFT] and self.direction != 1:
-                self.direction = 3
-            elif keys[pygame.K_RIGHT] and self.direction != 3:
-                self.direction = 1
-            elif keys[pygame.K_UP] and self.direction != 2:
-                self.direction = 0
-            elif keys[pygame.K_DOWN] and self.direction != 0:
-                self.direction = 2
+            time0 = time.time()
+            while time.time() - time0 < self.move_time:  # TIME FRAME FOR INPUT
+                # Keyboard Input section
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_LEFT] and self.direction != 1:
+                    self.direction = 3
+                    break
+                elif keys[pygame.K_RIGHT] and self.direction != 3:
+                    self.direction = 1
+                    break
+                elif keys[pygame.K_UP] and self.direction != 2:
+                    self.direction = 0
+                    break
+                elif keys[pygame.K_DOWN] and self.direction != 0:
+                    self.direction = 2
+                    break
+
+            time.sleep(self.move_time + 0.02 - (time.time() - time0))  # Sleep rest of timeframe
 
             # Moving Section
             self.move_snake()
@@ -110,7 +118,7 @@ class Game:
 
             self.display_score()
             pygame.display.update()              
-            time.sleep(.08)
+
 
         time.sleep(3)
         pygame.display.quit()
