@@ -9,3 +9,4 @@
 	- [ ] Get highest score possible
 	- [ ] Try diffrent networks
  
+## About
