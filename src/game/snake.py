@@ -67,39 +67,14 @@ class Game:
         pygame.quit()
 
     def play(self):
-        f_run = True
-        render = self.render
-        self.food_refill(True, 1)
+        valid = True
+        _color = (130, 255, 255)
 
-        while f_run:
-            if render:
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        f_run = False
-                        break
-
-            self.player_input()  # Capture keyboard and move
-
-            # Moving Section
-            self.move_snake()
-            hit1 = self.check_border()
-            hit2 = self.check_collision_with_obstacles(self.x, self.y)
-            if hit1 or hit2:
-                f_run = False  # <<---- Collision, Disable loop
-                if hit2:
-                    self.move_snake(reverse=True)
-                self.speed_multiplier = 0
-                _color = (255, 0, 0)
-            else:
-                _color = (130, 255, 255)
-
-            self.update_tail()
-            self.eat_food()
-            
-            # Drawing Section --------
-            if render:
+        while valid:
+            if self.render:
                 self.screen.fill((30, 30, 50))
-                pygame.draw.rect(self.screen, (50, 150, 130), (self.tail[0][0], self.tail[0][1], self.rect_size, self.rect_size))  # last tail piece
+                pygame.draw.rect(self.screen, (50, 150, 130),
+                                 (self.tail[0][0], self.tail[0][1], self.rect_size, self.rect_size))  # last tail piece
                 for tail in self.tail[1:]:
                     pygame.draw.rect(self.screen, (35, 120, 50), (tail[0], tail[1], self.rect_size, self.rect_size))
                 pygame.draw.rect(self.screen, _color, (self.x, self.y, self.rect_size, self.rect_size))
@@ -109,10 +84,44 @@ class Game:
 
                 self.display_score()
                 pygame.display.update()
+            valid = self.step()
 
-        time.sleep(3)
-        pygame.display.quit()
-        
+        if self.render:
+            pygame.display.quit()
+
+    def step(self):
+        f_run = True
+        render = self.render
+        self.food_refill(True, 1)
+
+        if render:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    f_run = False
+                    break
+
+        self.player_input()  # Capture keyboard and move
+
+        # Moving Section
+        self.move_snake()
+        hit1 = self.check_border()
+        hit2 = self.check_collision_with_obstacles(self.x, self.y)
+        if hit1 or hit2:
+            f_run = False  # <<---- Collision, Disable loop
+            if hit2:
+                self.move_snake(reverse=True)
+            self.speed_multiplier = 0
+            _color = (255, 0, 0)
+        else:
+            _color = (130, 255, 255)
+
+        self.update_tail()
+        self.eat_food()
+            
+        # Drawing Section --------
+
+        return f_run
+
     def display_score(self):
         my_font = pygame.font.SysFont('Comic Sans MS', 30)
         text_surface = my_font.render('Score = ' + str(self.score), False, (255, 255, 255))
@@ -228,28 +237,35 @@ class Game:
         return hit
 
     def player_input(self):
-        time0 = time.time()
         if self.render:
-            while time.time() - time0 < self.move_time:  # TIME FRAME FOR INPUT
+            # while time.time() - time0 < self.move_time:  # TIME FRAME FOR INPUT
+            while True:  # TIME FRAME FOR INPUT
                 # Keyboard Input section
                 keys = pygame.key.get_pressed()
+                print(keys)
                 if keys[pygame.K_LEFT] and self.direction != 1:
                     self.direction = 3
+                    print("Selected 3")
                     break
                 elif keys[pygame.K_RIGHT] and self.direction != 3:
                     self.direction = 1
+                    print("Selected 1")
                     break
                 elif keys[pygame.K_UP] and self.direction != 2:
                     self.direction = 0
+                    print("Selected 0")
                     break
                 elif keys[pygame.K_DOWN] and self.direction != 0:
                     self.direction = 2
+                    print("Selected 2")
                     break
-            time.sleep(self.move_time + 0.02 - (time.time() - time0))  # Sleep rest of timeframe
+                # else:
+                #     print("No key selected")
+                time.sleep(1)
 
 
-G1 = Game(render=False)
-G1.play()
+# G1 = Game(render=False)
+# G1.play()
 
 G2 = Game()
 G2.play()
