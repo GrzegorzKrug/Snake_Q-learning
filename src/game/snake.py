@@ -1,40 +1,28 @@
 import pygame
-from pygame.locals import *
+# from pygame.locals import *
 import numpy as np
 import time
 
-# class Player:
-#     def __init__(self):
-#         self.x = 10
-#         self.y = 10
-#         self.speed = 1
-#         self.direction = 0
-#
-#     # def update(self):
-#         # if self.direction == 0
-#
-#     def moveRight(self):
-#         self.x += self.speed
-#
-#     def moveLeft(self):
-#         self.x -= self.speed
-#
-#     def moveUp(self):
-#         self.y += self.speed
-#
-#     def moveDown(self):
-#         self.y -= self.speed
-#
-#
-# def deco_init_quit(fun):
-#     def wrapper(*args, **kwargs):
-#         pygame.init()
-#         out = fun(*args, **kwargs)
-#         pygame.quit()
-#         print('Quit')
-#         return out
-#     return wrapper
-# @deco_init_quit
+
+class SquareMovement:
+    def __init__(self, dist=15, timeout=1000):
+        self._now = -1
+        self.now = -1
+        self.dist = dist
+        self.timeout = timeout
+
+    def __next__(self):
+        self._now += 1
+        if not self._now % self.dist:
+            self.now = (self.now + 1) % 4
+
+        if self._now > self.timeout:
+            return 0
+        # print(self._now)
+        return self.now
+
+    def __repr__(self):
+        return f"Square: {self.now}"
 
 
 class Game:
@@ -48,7 +36,8 @@ class Game:
         self.render = render
         self.size = self.width, self.height = width, height
 
-        self.move_time = 0.08
+        self.square_move = SquareMovement()
+        self.move_time = 1
         self.score = 0
 
         self.rect_size = 25
@@ -60,39 +49,44 @@ class Game:
 
         self.tail_len = 10
         self.tail = [[self.x, self.y]]
-
+        self.done = False
         self.food = []
 
     def __del__(self):
         pygame.quit()
 
-    def play(self):
+    def play(self, delay=0.03):
         valid = True
         _color = (130, 255, 255)
+        try:
+            while valid:
+                if self.render:
+                    self.screen.fill((30, 30, 50))
+                    pygame.draw.rect(self.screen, (50, 150, 130),
+                                     (self.tail[0][0], self.tail[0][1], self.rect_size, self.rect_size))  # last tail piece
+                    for tail in self.tail[1:]:
+                        pygame.draw.rect(self.screen, (35, 120, 50), (tail[0], tail[1], self.rect_size, self.rect_size))
+                    pygame.draw.rect(self.screen, _color, (self.x, self.y, self.rect_size, self.rect_size))
 
-        while valid:
+                    for food in self.food:
+                        pygame.draw.rect(self.screen, (0, 255, 0), (food[0], food[1], self.rect_size, self.rect_size))
+
+                    self.display_score()
+                    pygame.display.update()
+                    time.sleep(delay)
+
+                valid, reward = self.step()
+                # print(valid, reward)
+        finally:
             if self.render:
-                self.screen.fill((30, 30, 50))
-                pygame.draw.rect(self.screen, (50, 150, 130),
-                                 (self.tail[0][0], self.tail[0][1], self.rect_size, self.rect_size))  # last tail piece
-                for tail in self.tail[1:]:
-                    pygame.draw.rect(self.screen, (35, 120, 50), (tail[0], tail[1], self.rect_size, self.rect_size))
-                pygame.draw.rect(self.screen, _color, (self.x, self.y, self.rect_size, self.rect_size))
-
-                for food in self.food:
-                    pygame.draw.rect(self.screen, (0, 255, 0), (food[0], food[1], self.rect_size, self.rect_size))
-
-                self.display_score()
-                pygame.display.update()
-            valid = self.step()
-
-        if self.render:
-            pygame.display.quit()
+                pygame.display.quit()
 
     def step(self):
+        if self.done:
+            print("Run has ended")
         f_run = True
         render = self.render
-        self.food_refill(True, 1)
+        self.food_refill(True, 150)
 
         if render:
             for event in pygame.event.get():
@@ -100,9 +94,7 @@ class Game:
                     f_run = False
                     break
 
-        self.player_input()  # Capture keyboard and move
-
-        # Moving Section
+        self.direction = next(self.square_move)
         self.move_snake()
         hit1 = self.check_border()
         hit2 = self.check_collision_with_obstacles(self.x, self.y)
@@ -116,11 +108,13 @@ class Game:
             _color = (130, 255, 255)
 
         self.update_tail()
-        self.eat_food()
+        reward = self.eat_food()
             
         # Drawing Section --------
-
-        return f_run
+        if not f_run:
+            self.done = True
+            reward = -10
+        return f_run, reward
 
     def display_score(self):
         my_font = pygame.font.SysFont('Comic Sans MS', 30)
@@ -128,13 +122,16 @@ class Game:
         self.screen.blit(text_surface, (0, 0))
         
     def eat_food(self):
+        out = 0
         for i, food in enumerate(self.food):
             if self.check_collision_with_snake(food[0], food[1]):
                 self.food.pop(i)
                 self.tail_len += 1
                 self.score += 1
+                out += 1
                 self.place_food()
                 break
+        return out
     
     def food_refill(self, multi_food=False, n=1):
         while multi_food and len(self.food) < n\
@@ -236,32 +233,35 @@ class Game:
                 self.y = self.height - self.rect_size
         return hit
 
-    def player_input(self):
-        if self.render:
-            # while time.time() - time0 < self.move_time:  # TIME FRAME FOR INPUT
-            while True:  # TIME FRAME FOR INPUT
-                # Keyboard Input section
-                keys = pygame.key.get_pressed()
-                print(keys)
-                if keys[pygame.K_LEFT] and self.direction != 1:
-                    self.direction = 3
-                    print("Selected 3")
-                    break
-                elif keys[pygame.K_RIGHT] and self.direction != 3:
-                    self.direction = 1
-                    print("Selected 1")
-                    break
-                elif keys[pygame.K_UP] and self.direction != 2:
-                    self.direction = 0
-                    print("Selected 0")
-                    break
-                elif keys[pygame.K_DOWN] and self.direction != 0:
-                    self.direction = 2
-                    print("Selected 2")
-                    break
-                # else:
-                #     print("No key selected")
-                time.sleep(1)
+    # def player_input(self):
+    #     if self.render:
+    #         time_0 = time.time()
+    #         # while time.time() - time0 < self.move_time:  # TIME FRAME FOR INPUT
+    #             # Keyboard Input section
+    #         keys = pygame.key.get_pressed()
+    #         # print(keys)
+    #         if keys[pygame.K_LEFT] and self.direction != 1:
+    #             self.direction = 3
+    #             print("Selected 3")
+    #             # break
+    #         elif keys[pygame.K_RIGHT] and self.direction != 3:
+    #             self.direction = 1
+    #             print("Selected 1")
+    #             # break
+    #         elif keys[pygame.K_UP] and self.direction != 2:
+    #             self.direction = 0
+    #             print("Selected 0")
+    #             # break
+    #         elif keys[pygame.K_DOWN] and self.direction != 0:
+    #             self.direction = 2
+    #             print("Selected 2")
+    #             # break
+    #         else:
+    #             print("No key selected")
+    #         # if time.time() - time_0 > self.move_time:
+    #             # break
+    #         time.sleep(0.001)
+    #         time.sleep(0.05)
 
 
 # G1 = Game(render=False)
@@ -270,7 +270,7 @@ class Game:
 G2 = Game()
 G2.play()
 
-print('Score1 = ', G1.score)
+# print('Score1 = ', G1.score)
 print('Score2 = ', G2.score)
 # time.sleep(5)
 # input('Bye....')
