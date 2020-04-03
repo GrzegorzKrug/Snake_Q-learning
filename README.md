@@ -1,13 +1,18 @@
-# Snake Q-learning
+# About Snake Q-learning
+Learning repository.
+Target is to implement q-learning algorithm 
+#### Version
 
+Python 3.7.6
 
 ## Todo:
-- [x] Write Game enviroment
+- [x] Write Game environment
 - [ ] Teach AI to play
-	- [ ] implement reinforced learning
-	- [ ] train 
+	- [ ] Implement reinforced learning
+	- [ ] Train 
 	- [ ] Get highest score possible
-	- [ ] Try diffrent networks
+	- [ ] Try different inputs:
+	    * view lines
+	    * whole area ahead
  
-## About
-#### IM in master branch
+
