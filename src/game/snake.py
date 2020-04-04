@@ -135,10 +135,12 @@ class Game:
             self.place_food()
 
     def move_snake(self, reverse=False):
-        # Directions
-        #   0       Up
-        # 3   1     Left / Right
-        #   2       Down
+        """
+        Directions
+          0       Up
+        3   1     Left / Right
+          2       Down
+        """
         current_speed = self.speed_multiplier * self.rect_size
         if reverse:
             if self.direction == 0:
@@ -163,7 +165,6 @@ class Game:
         depth = view_len * 2 + 1  # in to direction + 1(center)
         direction = self.direction
         view_area = np.zeros((depth, depth), dtype=int)
-        # print(self.x, self.y)
         for iy in range(depth):
             for ix in range(depth):
                 x = int(self.x + (ix - view_len) * self.rect_size)
@@ -184,14 +185,15 @@ class Game:
                         view_area[iy, ix] = -1
                         break
 
-        # print(view_area)
         return direction, view_area
 
     def place_food(self):
         while True:
-            rx, ry = np.random.rand() * (self.width - 1), np.random.rand() * (self.height - 1)
-            rx, ry = round(rx // self.rect_size * self.rect_size), \
-                     round(ry // self.rect_size * self.rect_size)
+            rx = np.random.rand() * (self.width - 1)
+            ry = np.random.rand() * (self.height - 1)
+
+            rx = round(rx // self.rect_size * self.rect_size)
+            ry = round(ry // self.rect_size * self.rect_size)
 
             if self.check_collision_with_food(rx, ry):
                 continue
@@ -280,7 +282,5 @@ class Game:
 G2 = Game()
 G2.play(delay=.01)
 
-# print('Score1 = ', G1.score)
 print('Score2 = ', G2.score)
 # time.sleep(5)
-# input('Bye....')
