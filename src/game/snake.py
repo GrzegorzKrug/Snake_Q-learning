@@ -9,16 +9,20 @@ class SquareMovement:
         self._now = -1
         self.now = -1
         self.dist = dist
-        self.timeout = timeout
+        self.A = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+                  3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, \
+                  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, \
+                  1, 1, 1, 1, 1, 2]
+        self.timeout = len(self.A)
 
     def __next__(self):
         self._now += 1
         if not self._now % self.dist:
             self.now = (self.now + 1) % 4
 
-        if self._now > self.timeout:
+        if self._now >= self.timeout:
             return 0
-        return self.now
+        return self.A[self._now]
 
     def __repr__(self):
         return f"Square: {self.now}"
@@ -33,7 +37,7 @@ class Game:
             self.screen = pygame.display.set_mode((width, height))
 
         self.render = render
-        self.food_on_screen = 150
+        self.food_on_screen = 50
 
         self.size = self.width, self.height = width, height
 
@@ -107,12 +111,12 @@ class Game:
             if [x, y] == pos:
                 return True
         return False
-    
+
     def display_score(self):
         my_font = pygame.font.SysFont('Comic Sans MS', 30)
         text_surface = my_font.render('Score = ' + str(self.score), False, (255, 255, 255))
         self.screen.blit(text_surface, (0, 0))
-                
+
     def eat_food(self):
         out = 0
         for i, food in enumerate(self.food):
@@ -126,20 +130,9 @@ class Game:
         return out
 
     def food_refill(self, multi_food=False, n=1):
-        while multi_food and len(self.food) < n\
-           or len(self.food) < 1:
+        while multi_food and len(self.food) < n \
+                or len(self.food) < 1:
             self.place_food()
-
-    def observation_area(self, area=7):
-        direction = self.direction
-        area = np.zeros_like(7, 7)
-
-        return (direction, area)
-
-    def observation_lines(self):
-        self.x
-        self.y
-        pass
 
     def move_snake(self, reverse=False):
         # Directions
@@ -165,11 +158,39 @@ class Game:
                 self.y += current_speed
             else:
                 self.x -= current_speed
-    
+
+    def observation_area(self, view_len=4):
+        depth = view_len * 2 + 1  # in to direction + 1(center)
+        direction = self.direction
+        view_area = np.zeros((depth, depth), dtype=int)
+        # print(self.x, self.y)
+        for iy in range(depth):
+            for ix in range(depth):
+                x = int(self.x + (ix - view_len) * self.rect_size)
+                y = int(self.y + (iy - view_len) * self.rect_size)  # Y is drawn from top to bot
+
+                if x > self.width or x < 0 or \
+                        y >= self.height or y < 0:
+                    view_area[iy, ix] = -1
+                    continue
+
+                for f in self.food:
+                    if [x, y] == f:
+                        view_area[iy, ix] = 1
+                        break
+
+                for tail in self.tail:
+                    if [x, y] == tail:
+                        view_area[iy, ix] = -1
+                        break
+
+        # print(view_area)
+        return direction, view_area
+
     def place_food(self):
         while True:
             rx, ry = np.random.rand() * (self.width - 1), np.random.rand() * (self.height - 1)
-            rx, ry = round(rx // self.rect_size * self.rect_size),\
+            rx, ry = round(rx // self.rect_size * self.rect_size), \
                      round(ry // self.rect_size * self.rect_size)
 
             if self.check_collision_with_food(rx, ry):
@@ -180,14 +201,18 @@ class Game:
     def play(self, delay=0.03):
         valid = True
         _color = (130, 255, 255)
-        index = 0
         try:
+            index = 1
             while valid:
-
+                valid, reward, state = self.step()
+                if index in [0, 15, 42, 48, 73, 74]:
+                    print(index)
+                    print(state[1])
                 if self.render:
                     self.screen.fill((30, 30, 50))
                     pygame.draw.rect(self.screen, (50, 150, 130),
-                                     (self.tail[0][0], self.tail[0][1], self.rect_size, self.rect_size))  # last tail piece
+                                     (self.tail[0][0], self.tail[0][1], self.rect_size,
+                                      self.rect_size))  # last tail piece
                     for tail in self.tail[1:]:
                         pygame.draw.rect(self.screen, (35, 120, 50), (tail[0], tail[1], self.rect_size, self.rect_size))
                     pygame.draw.rect(self.screen, _color, (self.x, self.y, self.rect_size, self.rect_size))
@@ -203,7 +228,6 @@ class Game:
 
                     time.sleep(delay)
 
-                valid, reward, state = self.step()
                 index += 1
         finally:
             if self.render:
@@ -249,45 +273,12 @@ class Game:
             self.tail += [[self.x, self.y]]
 
         if len(self.tail) > (self.tail_len + 1):
-            self.tail = self.tail[-self.tail_len-1:]
+            self.tail = self.tail[-self.tail_len - 1:]
             # self.tail.pop(0)
 
-    # def player_input(self):
-    #     if self.render:
-    #         time_0 = time.time()
-    #         # while time.time() - time0 < self.move_time:  # TIME FRAME FOR INPUT
-    #             # Keyboard Input section
-    #         keys = pygame.key.get_pressed()
-    #         # print(keys)
-    #         if keys[pygame.K_LEFT] and self.direction != 1:
-    #             self.direction = 3
-    #             print("Selected 3")
-    #             # break
-    #         elif keys[pygame.K_RIGHT] and self.direction != 3:
-    #             self.direction = 1
-    #             print("Selected 1")
-    #             # break
-    #         elif keys[pygame.K_UP] and self.direction != 2:
-    #             self.direction = 0
-    #             print("Selected 0")
-    #             # break
-    #         elif keys[pygame.K_DOWN] and self.direction != 0:
-    #             self.direction = 2
-    #             print("Selected 2")
-    #             # break
-    #         else:
-    #             print("No key selected")
-    #         # if time.time() - time_0 > self.move_time:
-    #             # break
-    #         time.sleep(0.001)
-    #         time.sleep(0.05)
-
-
-# G1 = Game(render=False)
-# G1.play()
 
 G2 = Game()
-G2.play()
+G2.play(delay=.01)
 
 # print('Score1 = ', G1.score)
 print('Score2 = ', G2.score)
