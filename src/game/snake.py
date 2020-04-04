@@ -31,7 +31,7 @@ class Game:
     _count = 0
 
     def __init__(self, width=1.4e3, height=8e2, render=False, food_ammount=3,
-                 view_len=4):
+                 view_len=4, time_out=10000):
         if render:
             pygame.init()
             width = int(width)
@@ -41,6 +41,7 @@ class Game:
         self.render = render
         self.food_on_screen = food_ammount
         self.view_len = view_len
+        self.time_out = time_out
 
         self.size = self.width, self.height = width, height
         self.score = 0
@@ -51,6 +52,7 @@ class Game:
         self.tail_len = 10
         self.food = []
         self.done = False
+        self.current_time = 0
 
         self.square_move = SquareMovement()
         self.move_time = 1
@@ -73,8 +75,9 @@ class Game:
         self.y = (self.height / 2) // self.rect_size * self.rect_size
         self.tail_len = 10
         self.tail = [[self.x, self.y]]
-        self.done = False
         self.food = []
+        self.done = False
+        self.current_time = 0
         self.food_refill(True, self.food_on_screen)
 
     def check_border(self, border=True):
@@ -115,7 +118,7 @@ class Game:
                 return True
         return False
 
-    def check_collision_with_obstacles(self, x, y):
+    def check_collision_with_observationtacles(self, x, y):
         for pos in self.tail[1:-1]:
             if [x, y] == pos:
                 # self.speed_multiplier = 0
@@ -231,7 +234,40 @@ class Game:
         return self.direction, view_area
 
     def observation(self):
-        pass
+        """
+
+        :return:
+        int:
+            direction in range<0, 3>
+        list:
+            food-head relative position shape=(2)
+        list:
+            view-area, shape(3,3), elements: 0-path, 1-collision
+        """
+        view_area = np.zeros((3, 3), dtype=int)
+        for iy in range(3):
+            for ix in range(3):
+                x = int(self.x + (ix - 1) * self.rect_size)
+                y = int(self.y + (iy - 1) * self.rect_size)
+
+                if x > self.width or x < 0 or \
+                        y >= self.height or y < 0:
+                    view_area[iy, ix] = 1
+                    continue
+
+                for tail in self.tail:
+                    if [x, y] == tail:
+                        view_area[iy, ix] = 1
+                        break
+
+        if len(self.food) > 0:
+            food = self.food[0]
+        else:
+            food = [2, 2]
+            return self.direction, food, view_area
+
+        out = [self.x - food[0], self.y - food[1]]
+        return self.direction, out, view_area
 
     def place_food(self):
         while True:
@@ -246,29 +282,58 @@ class Game:
             break
         self.food += [[rx, ry]]
 
-    def play(self, delay=0.03):
-        valid = True
-        try:
-            index = 1
-            while valid:
-                valid, reward, state = self.step()
-
-                if self.render:
-                    self.draw()
-                    time.sleep(delay)
-                index += 1
-        finally:
-            if self.render:
-                pygame.display.quit()
+    # def play(self, delay=0.03):
+    #     valid = True
+    #     try:
+    #         index = 1
+    #         while valid:
+    #             valid, reward, state = self.step()
+    #
+    #             if self.render:
+    #                 self.draw()
+    #                 time.sleep(delay)
+    #             index += 1
+    #     finally:
+    #         if self.render:
+    #             pygame.display.quit()
 
     def reset(self):
+        """
+        Returns
+        -------
+        tuple: observation
+            int: direction
+            list of ints: shape=(2), food position relative,
+            list of ints: shape=(3,3), view_area
+                value 0 is path,
+                value 1 is wall / tail
+        """
         self._reset()
         return self.observation()
 
     def step(self, new_direction):
+        """
+        Function makes one step in game and returns new observation
+        Parameters
+        ----------
+        new_direction: int
+
+        Returns
+        -------
+        tuple:
+            bool: continue_game
+            int: reward
+            tuple: observation
+                int: direction
+                list of ints: shape=(2), food position relative,
+                list of ints: shape=(3,3), view_area
+                    value 0 is path,
+                    value 1 is wall / tail
+        """
         if self.done:
             print("Run has ended")
         f_run = True
+        self.current_time += 1
         self.food_refill(True, self.food_on_screen)
 
         if self.render:
@@ -279,7 +344,7 @@ class Game:
 
         self.move_snake(new_direction)
         hit1 = self.check_border()
-        hit2 = self.check_collision_with_obstacles(self.x, self.y)
+        hit2 = self.check_collision_with_observationtacles(self.x, self.y)
         if hit1 or hit2:  # <<---- Collision, Disable loop
             f_run = False
             # if hit2:
@@ -291,13 +356,16 @@ class Game:
 
         self.update_tail()
         reward = self.eat_food()
-        obs = self.observation()
+        observation = self.observation()
 
         if not f_run:  # Devalue reward
             self.done = True
             reward = -10
+        if self.current_time >= self.time_out:
+            f_run = False
+            self.done = True
 
-        return f_run, reward, obs
+        return f_run, reward, observation
 
     def update_tail(self):
         if self.tail[-1] != [self.x, self.y]:
@@ -308,15 +376,15 @@ class Game:
             # self.tail.pop(0)
 
 
-EPISODES = 500
-SHOW_EVERY = EPISODES // 3
+EPISODES = 5000
+SHOW_EVERY = EPISODES // 4
 
 ACTIONS = 4  # 4 Moves possible
 MOVE_DIRECTIONS = 4  # state movement directions
-VIEW_LEN = 3
-VIEW_AREA = (VIEW_LEN * 2 + 1) ** 2  # Formula
-print(f"View area: {VIEW_AREA}")
-FIELD_STATES = 3  # 0-Path, 1-Food, 2-Wall/Tail
+FIELD_STATES = 2
+VIEW_AREA = 9
+FOOD_SIZE = [3, 3]
+
 
 eps = 0.5
 EPS_OFFSET = 0.01
@@ -324,44 +392,51 @@ EPS_START_DECAYING = 0
 EPS_DECAY_AT = EPISODES // 2
 eps_iterator = iter(np.linspace(eps, 0, EPS_DECAY_AT - EPS_START_DECAYING))
 
-size = [MOVE_DIRECTIONS] + [FIELD_STATES * VIEW_AREA] + [ACTIONS]
-print(f"Size:\n{size}")
+size = [MOVE_DIRECTIONS] + FOOD_SIZE + [FIELD_STATES ** VIEW_AREA] + [ACTIONS]
+# print(f"Size:\n{size}")
 
 q_table = np.random.uniform(-5, 5, size=size)
-# print(q_table.shape)
 
 
+# def discrete_state(q_table, direction, food_relative, view_area):
+def discrete_state(q_table, observation):
+    direction, food_relative, view_area = observation
+    discrete_index = 0
+    table = q_table[direction, :]
+    f_x = int(0 if not food_relative[0] else 1 * np.sign(food_relative[0])) + 1
+    f_y = int(0 if not food_relative[1] else 1 * np.sign(food_relative[1])) + 1
+    # print(f_x, f_y)
+    table = table[f_x, f_y, :]
+
+    for i, field in enumerate(view_area.ravel()):
+        if not field:  # Ignore 0=Path
+            continue
+
+        add = (FIELD_STATES ** i) * field
+        discrete_index += add
+
+    q_vals = table[discrete_index]
+    return q_vals
 
 
+observation = Game().reset()
 
-
-
-# with open('run_params.txt', 'at') as file:
-#     file.write(f"RUN: {run_num:>3d}, Episodes: {EPISODES:>6d}, Discount: {DISCOUNT:>4.2f}, Learning-rate: {LEARNING_RATE:>4.2f}, "
-#                f"Spaces: {STATE_SPACES:>3d}, "
-#                f"Eps-init: {eps:>2.4f}, Eps-end: {END_EPS:>2.4f}, Eps-decay-at: {END_EPSILON_DECAYING:>6d}, "
-#                f"Timeframe: {TIME_FRAME:>6d}, Eps-toggle: {str(EPS_TOGGLE):>6}")
-#     file.write('\n')
-
-
-direction, state = Game().reset()
 for episode in range(1, EPISODES):
     if not episode % SHOW_EVERY:
         render = True
     else:
         render = False
 
-    game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
+    game = Game(food_ammount=1, render=render)
     valid = True
-    direction, state = game.reset()
+    observation = Game().reset()
 
     while valid:
         action = np.random.randint(0, 4)
 
-        valid, rewards, state = game.step(action)
+        valid, rewards, observation = game.step(action)
         if render:
             game.draw()
-            time.sleep(0.01)
+            time.sleep(0.02)
 
-    # print(f"Ep[{episode}]: {game.score}")
-    break
+    print(f"Ep[{episode}]: {game.score}")
