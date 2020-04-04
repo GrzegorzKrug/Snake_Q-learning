@@ -29,7 +29,9 @@ class SquareMovement:
 
 class Game:
     _count = 0
-    def __init__(self, width=1.4e3, height=8e2, render=False, food_ammount=3):
+
+    def __init__(self, width=1.4e3, height=8e2, render=False, food_ammount=3,
+                 view_len=4):
         if render:
             pygame.init()
             width = int(width)
@@ -38,6 +40,7 @@ class Game:
 
         self.render = render
         self.food_on_screen = food_ammount
+        self.view_len = view_len
 
         self.size = self.width, self.height = width, height
         self.score = 0
@@ -77,8 +80,6 @@ class Game:
         Game._count -= 1
         if Game._count < 1:
             pygame.quit()
-
-
 
     def check_border(self, border=True):
         hit = False
@@ -208,17 +209,17 @@ class Game:
             else:
                 self.x -= current_speed
 
-    def observation_area(self, view_len=4):
-        depth = view_len * 2 + 1  # in to direction + 1(center)
+    def observation_area(self):
+        depth = self.view_len * 2 + 1  # in to direction + 1(center)
         view_area = np.zeros((depth, depth), dtype=int)
         for iy in range(depth):
             for ix in range(depth):
-                x = int(self.x + (ix - view_len) * self.rect_size)
-                y = int(self.y + (iy - view_len) * self.rect_size)  # Y is drawn from top to bot
+                x = int(self.x + (ix - self.view_len) * self.rect_size)
+                y = int(self.y + (iy - self.view_len) * self.rect_size)  # Y is drawn from top to bot
 
                 if x > self.width or x < 0 or \
                         y >= self.height or y < 0:
-                    view_area[iy, ix] = -1
+                    view_area[iy, ix] = 2
                     continue
 
                 for f in self.food:
@@ -228,7 +229,7 @@ class Game:
 
                 for tail in self.tail:
                     if [x, y] == tail:
-                        view_area[iy, ix] = -1
+                        view_area[iy, ix] = 2
                         break
 
         return self.direction, view_area
@@ -304,19 +305,50 @@ class Game:
             # self.tail.pop(0)
 
 
-SHOW_EVERY = 50
-EPISODES = 55
+EPISODES = 500
+SHOW_EVERY = EPISODES // 3
+
+ACTIONS = 4  # 4 Moves possible
+MOVE_DIRECTIONS = 4  # state movement directions
+VIEW_LEN = 3
+VIEW_AREA = (VIEW_LEN * 2 + 1) ** 2  # Formula
+print(f"View area: {VIEW_AREA}")
+FIELD_STATES = 3  # 0-Path, 1-Food, 2-Wall/Tail
+
+eps = 0.5
+EPS_OFFSET = 0.01
+EPS_START_DECAYING = 0
+EPS_DECAY_AT = EPISODES // 2
+eps_iterator = iter(np.linspace(eps, 0, EPS_DECAY_AT - EPS_START_DECAYING))
+
+size = [MOVE_DIRECTIONS] + [FIELD_STATES * VIEW_AREA] + [ACTIONS]
+print(f"Size:\n{size}")
+
+q_table = np.random.uniform(-5, 5, size=size)
+# print(q_table.shape)
 
 
-# game = Game(food_ammount=5, render=False)
 
-for episode in range(EPISODES):
+
+
+
+
+# with open('run_params.txt', 'at') as file:
+#     file.write(f"RUN: {run_num:>3d}, Episodes: {EPISODES:>6d}, Discount: {DISCOUNT:>4.2f}, Learning-rate: {LEARNING_RATE:>4.2f}, "
+#                f"Spaces: {STATE_SPACES:>3d}, "
+#                f"Eps-init: {eps:>2.4f}, Eps-end: {END_EPS:>2.4f}, Eps-decay-at: {END_EPSILON_DECAYING:>6d}, "
+#                f"Timeframe: {TIME_FRAME:>6d}, Eps-toggle: {str(EPS_TOGGLE):>6}")
+#     file.write('\n')
+
+
+direction, state = Game().reset()
+for episode in range(1, EPISODES):
     if not episode % SHOW_EVERY:
         render = True
     else:
         render = False
 
-    game = Game(food_ammount=1, render=render)
+    game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
     valid = True
     direction, state = game.reset()
 
@@ -326,6 +358,7 @@ for episode in range(EPISODES):
         valid, rewards, state = game.step(action)
         if render:
             game.draw()
-            time.sleep(0.05)
+            time.sleep(0.01)
 
-    print(f"Ep[{episode}]: {game.score}")
+    # print(f"Ep[{episode}]: {game.score}")
+    break
