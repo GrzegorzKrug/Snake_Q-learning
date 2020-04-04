@@ -17,10 +17,11 @@ def discrete_state(q_table, direction, area):
             continue
         # if i >= side_a:
         #     i
-        add = FIELD_STATES ** i + field - 1
-        print(f"i={i}, {i ** FIELD_STATES}  + field:{field} = {add}")
+        add = (FIELD_STATES ** i) - 1 + field
+        print(f"({FIELD_STATES} ** {i}) - 1 + {field} = {add}")
 
         dc += add
+
     # dc_state = q_table[direction, dc, :]
     print(f"Final: {dc}")
     dc_state = None
@@ -93,6 +94,29 @@ def test7():
     area7[0, 1] = 2
     _, st = discrete_state(q_table=q_table, direction=0, area=area7)
     assert st == 7
+
+
+def test8():
+    area7 = zeros.copy()
+    area7[0, 0] = 2
+    area7[0, 1] = 2
+    _, st = discrete_state(q_table=q_table, direction=0, area=area7)
+    assert st == 8
+
+
+def test9():
+    area7 = zeros.copy()
+    area7[0, 2] = 1
+    _, st = discrete_state(q_table=q_table, direction=0, area=area7)
+    assert st == 9
+
+
+def test10():
+    area7 = zeros.copy()
+    area7[0, 0] = 1
+    area7[0, 2] = 1
+    _, st = discrete_state(q_table=q_table, direction=0, area=area7)
+    assert st == 10
 
 
 def test2187():
