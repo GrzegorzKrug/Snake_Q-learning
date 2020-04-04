@@ -28,7 +28,8 @@ class SquareMovement:
 
 
 class Game:
-    def __init__(self, width=1.4e3, height=8e2, render=True, food_ammount=50):
+    _count = 0
+    def __init__(self, width=1.4e3, height=8e2, render=False, food_ammount=3):
         if render:
             pygame.init()
             width = int(width)
@@ -54,10 +55,12 @@ class Game:
         self.rect_size = 25
         self.speed_multiplier = 1
         self._reset()
+        Game._count += 1
 
     def _reset(self):
         self.score = 0
         self.direction = 1
+        self.speed_multiplier = 1
         self.x = (self.width / 2) // self.rect_size * self.rect_size
         self.y = (self.height / 2) // self.rect_size * self.rect_size
         self.tail_len = 10
@@ -71,7 +74,11 @@ class Game:
         return self.observation_area()
 
     def __del__(self):
-        pygame.quit()
+        Game._count -= 1
+        if Game._count < 1:
+            pygame.quit()
+
+
 
     def check_border(self, border=True):
         hit = False
@@ -130,14 +137,17 @@ class Game:
         self.screen.blit(text_surface, (0, 0))
 
     def draw(self):
-        _color = (130, 255, 255)
+        if self.done:
+            head_color = (255, 0, 0)
+        else:
+            head_color = (130, 255, 255)
         self.screen.fill((30, 30, 50))
         pygame.draw.rect(self.screen, (50, 150, 130),
                          (self.tail[0][0], self.tail[0][1], self.rect_size,
                           self.rect_size))  # last tail piece
         for tail in self.tail[1:]:
             pygame.draw.rect(self.screen, (35, 120, 50), (tail[0], tail[1], self.rect_size, self.rect_size))
-        pygame.draw.rect(self.screen, _color, (self.x, self.y, self.rect_size, self.rect_size))
+        pygame.draw.rect(self.screen, head_color, (self.x, self.y, self.rect_size, self.rect_size))
 
         for food in self.food:
             pygame.draw.rect(self.screen, (0, 255, 0), (food[0], food[1], self.rect_size, self.rect_size))
@@ -294,15 +304,28 @@ class Game:
             # self.tail.pop(0)
 
 
-game = Game(food_ammount=5, render=True)
-direction, state = game.reset()
-game.draw()
+SHOW_EVERY = 50
+EPISODES = 55
 
-for i in range(100):
-    game.step(input())
-    game.draw()
 
-print(direction)
-print(state)
+# game = Game(food_ammount=5, render=False)
 
-time.sleep(2)
+for episode in range(EPISODES):
+    if not episode % SHOW_EVERY:
+        render = True
+    else:
+        render = False
+
+    game = Game(food_ammount=1, render=render)
+    valid = True
+    direction, state = game.reset()
+
+    while valid:
+        action = np.random.randint(0, 4)
+
+        valid, rewards, state = game.step(action)
+        if render:
+            game.draw()
+            time.sleep(0.05)
+
+    print(f"Ep[{episode}]: {game.score}")
