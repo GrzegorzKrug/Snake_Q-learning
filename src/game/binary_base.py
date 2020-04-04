@@ -1,4 +1,4 @@
-
+import time
 
 def make_binary(num, base=2):
     text = ""
@@ -35,10 +35,13 @@ def make_binary(num, base=2):
 
 
 if __name__ == '__main__':
-    for x in range(28):
+    for x in range(239299329230617529590083):
         out = list(str(make_binary(x, 3)))
         out.reverse()
         # print(out)
         out = ''.join(out)
-        print(f"{x:>3}: {out:<08}")
+        if x > 239299329230617520590083:
+            print(f"{x:>7}: {out:<049}")
+        if not x % 100000:
+            time.sleep(0.001)
 

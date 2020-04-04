@@ -60,6 +60,11 @@ class Game:
         self._reset()
         Game._count += 1
 
+    def __del__(self):
+        Game._count -= 1
+        if Game._count < 1:
+            pygame.quit()
+
     def _reset(self):
         self.score = 0
         self.direction = 1
@@ -71,15 +76,6 @@ class Game:
         self.done = False
         self.food = []
         self.food_refill(True, self.food_on_screen)
-
-    def reset(self):
-        self._reset()
-        return self.observation_area()
-
-    def __del__(self):
-        Game._count -= 1
-        if Game._count < 1:
-            pygame.quit()
 
     def check_border(self, border=True):
         hit = False
@@ -234,6 +230,9 @@ class Game:
 
         return self.direction, view_area
 
+    def observation(self):
+        pass
+
     def place_food(self):
         while True:
             rx = np.random.rand() * (self.width - 1)
@@ -262,6 +261,10 @@ class Game:
             if self.render:
                 pygame.display.quit()
 
+    def reset(self):
+        self._reset()
+        return self.observation()
+
     def step(self, new_direction):
         if self.done:
             print("Run has ended")
@@ -288,7 +291,7 @@ class Game:
 
         self.update_tail()
         reward = self.eat_food()
-        obs = self.observation_area()
+        obs = self.observation()
 
         if not f_run:  # Devalue reward
             self.done = True
