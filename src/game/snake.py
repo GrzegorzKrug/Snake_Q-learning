@@ -1,7 +1,8 @@
 import pygame
 import numpy as np
 import time
-
+import matplotlib.pyplot as plt
+from matplotlib import style
 
 class SquareMovement:
     def __init__(self, dist=15, timeout=30):
@@ -159,6 +160,12 @@ class Game:
         # pygame.image.save(surf, f'image{index}.png')
 
     def eat_food(self):
+        """
+
+        Returns
+        -------
+        int: quantity of eaten food
+        """
         out = 0
         for i, food in enumerate(self.food):
             if self.check_collision_with_snake(food[0], food[1]):
@@ -355,7 +362,7 @@ class Game:
             _color = (130, 255, 255)
 
         self.update_tail()
-        reward = self.eat_food()
+        reward = self.eat_food() * 10 - 1  # Eaten food is worth 5
         observation = self.observation()
 
         if not f_run:  # Devalue reward
@@ -376,37 +383,40 @@ class Game:
             # self.tail.pop(0)
 
 
-EPISODES = 5000
-SHOW_EVERY = EPISODES // 4
+def get_discrete_vals(q_table, observation):
+    """
 
-ACTIONS = 4  # 4 Moves possible
-MOVE_DIRECTIONS = 4  # state movement directions
-FIELD_STATES = 2
-VIEW_AREA = 9
-FOOD_SIZE = [3, 3]
+    Parameters
+    ----------
+    q_table
+    observation
 
-
-eps = 0.5
-EPS_OFFSET = 0.01
-EPS_START_DECAYING = 0
-EPS_DECAY_AT = EPISODES // 2
-eps_iterator = iter(np.linspace(eps, 0, EPS_DECAY_AT - EPS_START_DECAYING))
-
-size = [MOVE_DIRECTIONS] + FOOD_SIZE + [FIELD_STATES ** VIEW_AREA] + [ACTIONS]
-# print(f"Size:\n{size}")
-
-q_table = np.random.uniform(-5, 5, size=size)
+    Returns
+    -------
+    list: q-values
+    """
+    index = discrete_state_index(observation)
+    q_values = q_table[tuple(index)]
+    return q_values
 
 
-# def discrete_state(q_table, direction, food_relative, view_area):
-def discrete_state(q_table, observation):
+def discrete_state_index(observation):
+    """
+
+    Parameters
+    ----------
+    q_table
+    observation
+
+    Returns
+    -------
+    tuple: index slice to q-vals
+    """
     direction, food_relative, view_area = observation
     discrete_index = 0
-    table = q_table[direction, :]
-    f_x = int(0 if not food_relative[0] else 1 * np.sign(food_relative[0])) + 1
-    f_y = int(0 if not food_relative[1] else 1 * np.sign(food_relative[1])) + 1
-    # print(f_x, f_y)
-    table = table[f_x, f_y, :]
+
+    f_x = int(0 if not food_relative[0] else 1 * np.sign(food_relative[0])) + 1  # Select food relative x
+    f_y = int(0 if not food_relative[1] else 1 * np.sign(food_relative[1])) + 1  # Select food relative y
 
     for i, field in enumerate(view_area.ravel()):
         if not field:  # Ignore 0=Path
@@ -415,28 +425,103 @@ def discrete_state(q_table, observation):
         add = (FIELD_STATES ** i) * field
         discrete_index += add
 
-    q_vals = table[discrete_index]
-    return q_vals
+    return (direction, f_x, f_y, discrete_index)
 
 
-observation = Game().reset()
+"Train"
+EPISODES = 100000
+SHOW_EVERY = EPISODES // 5
+LEARNING_RATE = 0.1
+DISCOUNT = 0.98
 
-for episode in range(1, EPISODES):
-    if not episode % SHOW_EVERY:
+"Environment"
+ACTIONS = 4  # 4 Moves possible
+MOVE_DIRECTIONS = 4  # state movement directions
+FIELD_STATES = 2
+VIEW_AREA = 9
+FOOD_SIZE = [3, 3]
+
+"Exploration"
+eps = 0.4
+EPS_OFFSET = 0.01
+EPS_START_DECAYING = 0
+EPS_DECAY_AT = EPISODES // 2
+eps_iterator = iter(np.linspace(eps, 0, EPS_DECAY_AT - EPS_START_DECAYING))
+
+"Q-Table initialization"
+size = [MOVE_DIRECTIONS] + FOOD_SIZE + [FIELD_STATES ** VIEW_AREA] + [ACTIONS]
+try:
+    q_table = np.load('last_qtable.npy', allow_pickle=True)
+except FileNotFoundError:
+    q_table = np.random.uniform(-5, 5, size=size)
+
+try:
+    stats = np.load('last_stats.npy', allow_pickle=True).item()
+except FileNotFoundError:
+    stats = {
+        "episode": [],
+        "eps": [],
+        "score": [],
+        "food_eaten": []
+    }
+
+if stats['episode']:
+    episode_offset = stats['episode'][-1] + 1
+else:
+    episode_offset = 0
+
+for episode in range(0 + episode_offset, EPISODES + episode_offset):
+    # Show very and show last
+    if not episode % SHOW_EVERY or episode >= EPISODES + episode_offset - 1:
         render = True
     else:
         render = False
+    # if :
 
     game = Game(food_ammount=1, render=render)
     valid = True
     observation = Game().reset()
+    score = 0
+
+    if EPS_DECAY_AT + episode_offset > episode > EPS_START_DECAYING + episode_offset:
+        eps = next(eps_iterator) + EPS_OFFSET
+    else:
+        eps = EPS_OFFSET
 
     while valid:
-        action = np.random.randint(0, 4)
+        q_values = get_discrete_vals(q_table, observation)
 
-        valid, rewards, observation = game.step(action)
+        if eps > np.random.random():
+            action = np.random.randint(0, 4)
+        else:
+            action = np.argmax(q_values)
+
+        old_q = q_values[action]
+
+        valid, reward, observation = game.step(action)
+        max_q = max(get_discrete_vals(q_table, observation))
+        new_q = (1 - LEARNING_RATE) * old_q \
+            + LEARNING_RATE * (reward + DISCOUNT * max_q)
+        q_table[discrete_state_index(observation)+(action,)] = new_q
+
         if render:
             game.draw()
             time.sleep(0.02)
+        score += reward
 
-    print(f"Ep[{episode}]: {game.score}")
+    stats['episode'].append(episode)
+    stats['eps'].append(eps)
+    stats['score'].append(score)
+    stats['food_eaten'].append(game.score)
+
+    if game.score > 0:
+        print(f"Ep[{episode:^7}], rewerd:{score:>6}, food_eaten:{game.score:>4}, Eps: {eps:>1.3f}")
+
+np.save('last_qtable.npy', q_table)
+np.save('last_stats.npy', stats)
+
+style.use('ggplot')
+plt.scatter(stats['episode'], stats['score'], alpha=0.3, marker='s', edgecolors='m', label="Score")
+plt.legend(loc=3)
+plt.show()
+
