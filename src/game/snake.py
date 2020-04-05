@@ -2,6 +2,7 @@ import pygame
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+import os
 from matplotlib import style
 
 class SquareMovement:
@@ -362,14 +363,16 @@ class Game:
             _color = (130, 255, 255)
 
         self.update_tail()
-        reward = self.eat_food() * 10 - 1  # Eaten food is worth 5
+        reward = self.eat_food()  # Eaten food is worth 5
         observation = self.observation()
 
         if not f_run:  # Devalue reward
             self.done = True
             reward = -10
+
         if self.current_time >= self.time_out:
             f_run = False
+            print(f"Timeout! score: {self.score}")
             self.done = True
 
         return f_run, reward, observation
@@ -429,8 +432,8 @@ def discrete_state_index(observation):
 
 
 "Train"
-EPISODES = 100000
-SHOW_EVERY = EPISODES // 5
+EPISODES = 50000
+SHOW_EVERY = EPISODES // 6
 LEARNING_RATE = 0.1
 DISCOUNT = 0.98
 
@@ -443,7 +446,7 @@ FOOD_SIZE = [3, 3]
 
 "Exploration"
 eps = 0.4
-EPS_OFFSET = 0.01
+EPS_OFFSET = 0.005
 EPS_START_DECAYING = 0
 EPS_DECAY_AT = EPISODES // 2
 eps_iterator = iter(np.linspace(eps, 0, EPS_DECAY_AT - EPS_START_DECAYING))
@@ -457,6 +460,7 @@ except FileNotFoundError:
 
 try:
     stats = np.load('last_stats.npy', allow_pickle=True).item()
+    episode_offset = stats['episode'][-1] + 1
 except FileNotFoundError:
     stats = {
         "episode": [],
@@ -464,11 +468,8 @@ except FileNotFoundError:
         "score": [],
         "food_eaten": []
     }
-
-if stats['episode']:
-    episode_offset = stats['episode'][-1] + 1
-else:
     episode_offset = 0
+
 
 for episode in range(0 + episode_offset, EPISODES + episode_offset):
     # Show very and show last
@@ -517,11 +518,15 @@ for episode in range(0 + episode_offset, EPISODES + episode_offset):
     if game.score > 0:
         print(f"Ep[{episode:^7}], rewerd:{score:>6}, food_eaten:{game.score:>4}, Eps: {eps:>1.3f}")
 
+# Saving outputs
+os.makedirs('graphs', exist_ok=True)
+
 np.save('last_qtable.npy', q_table)
 np.save('last_stats.npy', stats)
 
 style.use('ggplot')
-plt.scatter(stats['episode'], stats['score'], alpha=0.3, marker='s', edgecolors='m', label="Score")
+plt.scatter(stats['episode'][episode_offset:], stats['score'][episode_offset:], alpha=0.13, marker='s', edgecolors='m', label="Score")
 plt.legend(loc=3)
+plt.savefig(f"graphs/rewards-{episode_offset}-{episode_offset+EPISODES-1}")
 plt.show()
 
