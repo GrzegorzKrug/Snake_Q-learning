@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import os
 from matplotlib import style
 
+
 class SquareMovement:
     def __init__(self, dist=15, timeout=30):
         self._now = -1
@@ -436,10 +437,10 @@ def discrete_state_index(observation):
 
 
 "Train"
-EPISODES = 50000
-SHOW_EVERY = EPISODES // 6
+EPISODES = 100000
+SHOW_EVERY = EPISODES // 10
 LEARNING_RATE = 0.1
-DISCOUNT = 0.98
+DISCOUNT = 0.9
 
 "Environment"
 ACTIONS = 3  # 4 Moves possible
@@ -449,7 +450,7 @@ VIEW_AREA = 9
 FOOD_SIZE = [3, 3]
 
 "Exploration"
-eps = 0.4
+eps = 0.6
 EPS_OFFSET = 0.005
 EPS_START_DECAYING = 0
 EPS_DECAY_AT = EPISODES // 2
@@ -461,7 +462,7 @@ try:
     q_table = np.load('last_qtable.npy', allow_pickle=True)
 except FileNotFoundError:
     print(f"Creating new qtable!")
-    q_table = np.random.uniform(-5, 5, size=size)
+    q_table = np.random.uniform(-3, -1, size=size)
 
 try:
     stats = np.load('last_stats.npy', allow_pickle=True).item()
@@ -505,9 +506,9 @@ for episode in range(0 + episode_offset, EPISODES + episode_offset):
         old_q = q_values[action]
 
         valid, reward, observation = game.step(action=action)
-        max_q = max(get_discrete_vals(q_table, observation))
+        max_future_q = max(get_discrete_vals(q_table, observation))
         new_q = (1 - LEARNING_RATE) * old_q \
-            + LEARNING_RATE * (reward + DISCOUNT * max_q)
+            + LEARNING_RATE * (reward + DISCOUNT * max_future_q)
         q_table[discrete_state_index(observation)+(action,)] = new_q
 
         if render:
@@ -520,7 +521,7 @@ for episode in range(0 + episode_offset, EPISODES + episode_offset):
     stats['score'].append(score)
     stats['food_eaten'].append(game.score)
 
-    if game.score > 0:
+    if game.score > 2:
         print(f"Ep[{episode:^7}], rewerd:{score:>6}, food_eaten:{game.score:>4}, Eps: {eps:>1.3f}")
 
 # Saving outputs
