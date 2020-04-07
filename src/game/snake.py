@@ -437,8 +437,8 @@ def discrete_state_index(observation):
 
 
 "Train"
-EPISODES = 50_000
-SHOW_EVERY = EPISODES - 10 // 3
+EPISODES = 500_000
+SHOW_EVERY = EPISODES - 10 // 8
 LEARNING_RATE = 0.06
 DISCOUNT = 0.9
 
@@ -482,7 +482,6 @@ for episode in range(0 + episode_offset, EPISODES + episode_offset):
         render = True
     else:
         render = False
-    # if :
 
     game = Game(food_ammount=1, render=render)
     valid = True
@@ -493,13 +492,11 @@ for episode in range(0 + episode_offset, EPISODES + episode_offset):
         eps = next(eps_iterator) + EPS_OFFSET
     else:
         eps = EPS_OFFSET
-    if render:
-        print(" = = New game = = "*3)
     while valid:
         q_values = get_discrete_vals(q_table, observation)
-        if render:
-            print(f"Direction: {observation[0]}, food: {observation[1]}, q_vals: {q_values}")
-            print(observation[-1])
+        # if render:
+        #     print(f"Direction: {observation[0]}, food: {observation[1]}, q_vals: {q_values}")
+        #     print(observation[-1])
 
         if eps > np.random.random():
             action = np.random.randint(0, ACTIONS)
@@ -515,9 +512,8 @@ for episode in range(0 + episode_offset, EPISODES + episode_offset):
         q_table[discrete_state_index(observation) + (action,)] = new_q
         if render:
             game.draw()
-            # print(f"\tFuture q: {get_discrete_vals(q_table, observation)}")
             time.sleep(0.01)
-            print(f"Q: {old_q:>2.4f}, new_q {new_q:>2.4}, reward: {reward:>3}")
+            # print(f"Q: {old_q:>2.4f}, new_q {new_q:>2.4}, reward: {reward:>3}")
         score += reward
 
     stats['episode'].append(episode)
