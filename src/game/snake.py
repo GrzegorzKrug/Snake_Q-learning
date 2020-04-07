@@ -319,12 +319,15 @@ class Game:
         self._reset()
         return self.observation()
 
-    def step(self, new_direction):
+    def step(self, action):
         """
         Function makes one step in game and returns new observation
         Parameters
         ----------
         new_direction: int
+            0 - turn left
+            1 - go straight
+            2 - turn right
 
         Returns
         -------
@@ -338,6 +341,7 @@ class Game:
                     value 0 is path,
                     value 1 is wall / tail
         """
+        new_direction = (self.direction + (action - 1)) % 4
         if self.done:
             print("Run has ended")
         f_run = True
@@ -428,7 +432,7 @@ def discrete_state_index(observation):
         add = (FIELD_STATES ** i) * field
         discrete_index += add
 
-    return (direction, f_x, f_y, discrete_index)
+    return direction, f_x, f_y, discrete_index
 
 
 "Train"
@@ -438,7 +442,7 @@ LEARNING_RATE = 0.1
 DISCOUNT = 0.98
 
 "Environment"
-ACTIONS = 4  # 4 Moves possible
+ACTIONS = 3  # 4 Moves possible
 MOVE_DIRECTIONS = 4  # state movement directions
 FIELD_STATES = 2
 VIEW_AREA = 9
@@ -456,6 +460,7 @@ size = [MOVE_DIRECTIONS] + FOOD_SIZE + [FIELD_STATES ** VIEW_AREA] + [ACTIONS]
 try:
     q_table = np.load('last_qtable.npy', allow_pickle=True)
 except FileNotFoundError:
+    print(f"Creating new qtable!")
     q_table = np.random.uniform(-5, 5, size=size)
 
 try:
@@ -493,13 +498,13 @@ for episode in range(0 + episode_offset, EPISODES + episode_offset):
         q_values = get_discrete_vals(q_table, observation)
 
         if eps > np.random.random():
-            action = np.random.randint(0, 4)
+            action = np.random.randint(0, ACTIONS)
         else:
             action = np.argmax(q_values)
 
         old_q = q_values[action]
 
-        valid, reward, observation = game.step(action)
+        valid, reward, observation = game.step(action=action)
         max_q = max(get_discrete_vals(q_table, observation))
         new_q = (1 - LEARNING_RATE) * old_q \
             + LEARNING_RATE * (reward + DISCOUNT * max_q)
