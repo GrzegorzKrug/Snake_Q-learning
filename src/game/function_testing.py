@@ -1,141 +1,133 @@
+# from .snake import discrete_state_index
 import numpy as np
-import pytest
 
-FIELD_STATES = 3
-VIEW_DISTANCE = 3
-AREA = [VIEW_DISTANCE*2+1] * 2
-# AREA = AREA[0] ** 2
-print("AREA:", AREA)
-Q_AREA = (AREA[0] ** 2) ** FIELD_STATES
+FIELD_STATES = 2
 
 
-def discrete_state(q_table, direction, area):
-    dc = 0
-    print(area)
-    for i, field in enumerate(area.ravel()):
-        if not field:
+def discrete_state_index(observation):
+    """
+
+    Parameters
+    ----------
+    q_table
+    observation
+
+    Returns
+    -------
+    tuple: index slice to q-vals list
+        int: direction
+        int: food x relative <0, 2>
+        int: food y relative <0, 2>
+        int: view area index <0, field_vals**(fields-1)>
+    """
+    direction, food_relative, view_area = observation
+    discrete_index = 0
+
+    f_x = int(0 if not food_relative[0] else 1 * np.sign(food_relative[0])) + 1  # Select food relative x
+    f_y = int(0 if not food_relative[1] else 1 * np.sign(food_relative[1])) + 1  # Select food relative y
+    for i, field in enumerate(view_area.ravel()):
+        if not field:  # Ignore 0=Path
             continue
-        # if i >= side_a:
-        #     i
+
         add = (FIELD_STATES ** i) * field
-        print(f"({FIELD_STATES} ** {i}) - 1 + {field} = {add}")
+        discrete_index += add
 
-        dc += add
-
-    # dc_state = q_table[direction, dc, :]
-    print(f"Final: {dc}")
-    dc_state = None
-    return dc_state, int(dc)
-
-
-size = [4] + [Q_AREA] + [4]
-print(f"Size: {size}")
-
-zeros = np.zeros(AREA)
-q_table = np.random.uniform(-5, 5, size=size)
-print(zeros.shape)
-print(q_table.shape)
+    return direction, f_x, f_y, discrete_index
 
 
 def test0():
-    area0 = zeros.copy()
-    _, st = discrete_state(q_table=q_table, direction=0, area=area0)
-    assert st == 0
+    direction = 0
+    food_x = 0
+    food_y = 0
+    area = np.array([
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0]])
+    observation = (direction, [food_x, food_y], area)
+    good = (direction, 1, 1, 2**4)
+    out = discrete_state_index(observation=observation)
+    assert good == out
 
 
 def test1():
-    area1 = zeros.copy()
-    area1[0, 0] = 1
-    _, st = discrete_state(q_table=q_table, direction=0, area=area1)
-    assert st == 1
+    direction = 1
+    food_x = -1
+    food_y = 1
+    area = np.array([
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0]])
+    observation = (direction, [food_x, food_y], area)
+    good = (direction, 0, 2, 2**4)
+    out = discrete_state_index(observation=observation)
+    assert good == out
 
 
 def test2():
-    area2 = zeros.copy()
-    area2[0, 0] = 2
-    _, st = discrete_state(q_table=q_table, direction=0, area=area2)
-    assert st == 2
+    direction = 1
+    food_x = 1
+    food_y = 0
+    area = np.array([
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0]])
+    observation = (direction, [food_x, food_y], area)
+    good = (direction, 2, 1, 2**4)
+    out = discrete_state_index(observation=observation)
+    assert good == out
 
 
 def test3():
-    area4 = zeros.copy()
-    area4[0, 1] = 1
-    _, st = discrete_state(q_table=q_table, direction=0, area=area4)
-    assert st == 3
+    direction = 1
+    food_x = 1
+    food_y = -1
+    area = np.array([
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0]])
+    observation = (direction, [food_x, food_y], area)
+    good = (direction, 2, 0, 2**4)
+    out = discrete_state_index(observation=observation)
+    assert good == out
 
 
 def test4():
-    area5 = zeros.copy()
-    area5[0, 1] = 1
-    area5[0, 0] = 1
-    _, st = discrete_state(q_table=q_table, direction=0, area=area5)
-    assert st == 4
+    direction = 1
+    food_x = 110
+    food_y = -200
+    area = np.array([
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0]])
+    observation = (direction, [food_x, food_y], area)
+    good = (direction, 2, 0, 2**4)
+    out = discrete_state_index(observation=observation)
+    assert good == out
 
 
-def test5():
-    area6 = zeros.copy()
-    area6[0, 0] = 2
-    area6[0, 1] = 1
-    _, st = discrete_state(q_table=q_table, direction=0, area=area6)
-    assert st == 5
+def test5_float():
+    direction = 1
+    food_x = -110.0
+    food_y = 25.0
+    area = np.array([
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0]])
+    observation = (direction, [food_x, food_y], area)
+    good = (direction, 0, 2, 2**4)
+    out = discrete_state_index(observation=observation)
+    assert good == out
 
 
-def test6():
-    area6 = zeros.copy()
-    area6[0, 0] = 0
-    area6[0, 1] = 2
-    _, st = discrete_state(q_table=q_table, direction=0, area=area6)
-    assert st == 6
-
-
-def test7():
-    area7 = zeros.copy()
-    area7[0, 0] = 1
-    area7[0, 1] = 2
-    _, st = discrete_state(q_table=q_table, direction=0, area=area7)
-    assert st == 7
-
-
-def test8():
-    area7 = zeros.copy()
-    area7[0, 0] = 2
-    area7[0, 1] = 2
-    _, st = discrete_state(q_table=q_table, direction=0, area=area7)
-    assert st == 8
-
-
-def test9():
-    area7 = zeros.copy()
-    area7[0, 2] = 1
-    _, st = discrete_state(q_table=q_table, direction=0, area=area7)
-    assert st == 9
-
-
-def test10():
-    area7 = zeros.copy()
-    area7[0, 0] = 1
-    area7[0, 2] = 1
-    _, st = discrete_state(q_table=q_table, direction=0, area=area7)
-    assert st == 10
-
-
-def test2187():
-    area8 = zeros.copy()
-    area8[1, 0] = 1
-    _, st = discrete_state(q_table=q_table, direction=0, area=area8)
-    assert st == 2187
-
-
-def test15207():
-    # 020212202
-    area8 = zeros.copy()
-    area8[0, 1] = 2
-    area8[0, 3] = 2
-    area8[0, 4] = 1
-    area8[0, 5] = 2
-    area8[0, 6] = 2
-    area8[1, 1] = 2
-    _, st = discrete_state(q_table=q_table, direction=0, area=area8)
-    assert st == 15207
-
-
+def test6_float():
+    direction = 1
+    food_x = -110.0
+    food_y = 0.0
+    area = np.array([
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0]])
+    observation = (direction, [food_x, food_y], area)
+    good = (direction, 0, 1, 2**4)
+    out = discrete_state_index(observation=observation)
+    assert good == out
