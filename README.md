@@ -5,7 +5,7 @@ Target is to implement q-learning in different environment than gym-ai.
 
 #### Python Version
 
-Python==3.7.x
+Python==3.7.6
 
 ## Todo:
 - [x] Write Game environment
