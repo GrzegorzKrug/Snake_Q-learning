@@ -35,19 +35,25 @@ if os.path.isfile(file_path):
     sys.exit()
 
 style.use('ggplot')
-
+plt.figure(figsize=(16, 9))
 plt.subplot(211)
-plt.title(f"{name} learning score")
-plt.scatter(stats['episode'], stats['food_eaten'], marker='s', alpha=0.051, c='m', label='Food-eaten')
-plt.plot(stats['episode'], avg, label='Average', c='b')
+
+plt.scatter(stats['episode'], stats['food_eaten'], marker='s', alpha=0.1, c='g', label='Food-eaten')
+
+plt.title(f"{name}, alfa=0.1, discount=0.9")
+plt.plot(stats['episode'], avg, label='Average food', c='b')
 plt.ylabel("Food count")
+plt.legend(loc=2)
 
 plt.subplot(212)
-plt.plot(stats['episode'], avg_score, label='Average-score', c='b')
 
+plt.plot(stats['episode'], avg_score, label='Average-score', c='b')
+plt.scatter(stats['episode'], stats['score'], marker='s', alpha=0.1, c='m', label='score')
+plt.ylim([-1000, 1500])
 plt.xlabel("Episodes")
-plt.ylabel("Food points - move ")
+plt.ylabel("Points")
 plt.legend(loc=2)
+
 
 os.makedirs("graphs", exist_ok=True)
 plt.savefig(file_path)

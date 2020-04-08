@@ -485,7 +485,7 @@ if __name__ == "__main__":
         episode_offset = 0
 
     for episode in range(0 + episode_offset, EPISODES + episode_offset):
-        # Show very and show last
+        # Show every and show last
         if not episode % SHOW_EVERY or episode >= EPISODES + episode_offset - 1:
             render = True
         else:
@@ -520,8 +520,6 @@ if __name__ == "__main__":
             if render:
                 game.draw()
                 time.sleep(0.03)
-                # print(f"Q: {old_q:>2.4f}, new_q {new_q:>2.4}, reward: {reward:>3}")
-                # print(f"q_table: {q_table[discrete_state_index(old_observation)]}")
             score += reward
 
         stats['episode'].append(episode)
@@ -531,8 +529,6 @@ if __name__ == "__main__":
 
         if game.score > 10:
             print(f"Ep[{episode:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
-        # if render:
-        #     input("Waiting...")
 
     # Saving outputs
     os.makedirs('graphs', exist_ok=True)
@@ -543,8 +539,10 @@ if __name__ == "__main__":
     pygame.quit()
 
     style.use('ggplot')
-    plt.scatter(stats['episode'][episode_offset:], stats['food_eaten'][episode_offset:], alpha=0.13, marker='s', edgecolors='m',
-                label="Food_eaten")
+    plt.scatter(
+            stats['episode'][episode_offset:],
+            stats['food_eaten'][episode_offset:],
+            alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
+    )
     plt.legend(loc=3)
-    # plt.savefig(f"graphs/rewards-{episode_offset}-{episode_offset + EPISODES - 1}")
     plt.show()
