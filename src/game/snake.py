@@ -136,7 +136,7 @@ class Game:
 
     def display_score(self):
         my_font = pygame.font.SysFont('Comic Sans MS', 30)
-        text_surface = my_font.render('Score = ' + str(self.score), False, (255, 255, 255))
+        text_surface = my_font.render('Food-eaten = ' + str(self.score), False, (255, 255, 255))
         self.screen.blit(text_surface, (0, 0))
 
     def draw(self):
@@ -444,11 +444,11 @@ def discrete_state_index(observation):
 
 if __name__ == "__main__":
     "Train"
-    EPISODES = 50_000
+    EPISODES = 10_000
     SHOW_EVERY = (EPISODES - 10) // 5
     # SHOW_EVERY = 1
-    LEARNING_RATE = 0.06
-    DISCOUNT = 0.9
+    LEARNING_RATE = 0.2
+    DISCOUNT = 0.8
 
     "Environment"
     ACTIONS = 3  # 4 Moves possible
@@ -470,7 +470,7 @@ if __name__ == "__main__":
         q_table = np.load('last_qtable.npy', allow_pickle=True)
     except FileNotFoundError:
         print(f"Creating new qtable!")
-        q_table = np.random.uniform(-1, -1, size=size)
+        q_table = np.random.uniform(-1, 0, size=size)
 
     try:
         stats = np.load('last_stats.npy', allow_pickle=True).item()
@@ -496,37 +496,32 @@ if __name__ == "__main__":
         observation = Game().reset()
         score = 0
 
-        if EPS_DECAY_AT + episode_offset > episode > EPS_START_DECAYING + episode_offset:
+        if EPS_DECAY_AT + episode_offset > episode >= EPS_START_DECAYING + episode_offset:
             eps = next(eps_iterator) + EPS_OFFSET
         else:
             eps = EPS_OFFSET
         while valid:
-            q_values = get_discrete_vals(q_table, observation)
-            if render:
-                print(f" = ="*15)
-                arrow = "/\\" if observation[0] == 0 else \
-                        "->" if observation[0] == 1 else \
-                        "\\/" if observation[0] == 2 else \
-                        "<-"
-                print(f"Direction: {arrow}, food: {observation[1]}, q_vals: {q_values}")
-                print(observation[-1])
+            old_observation = observation
+            current_q_values = get_discrete_vals(q_table, old_observation)
 
             if eps > np.random.random():
                 action = np.random.randint(0, ACTIONS)
             else:
-                action = np.argmax(q_values)
+                action = np.argmax(current_q_values)
 
-            old_q = q_values[action]
+            old_q = current_q_values[action]
 
             valid, reward, observation = game.step(action=action)
             max_future_q = max(get_discrete_vals(q_table, observation))
             new_q = (1 - LEARNING_RATE) * old_q \
                 + LEARNING_RATE * (reward + DISCOUNT * max_future_q)
-            q_table[discrete_state_index(observation) + (action,)] = new_q
+            q_table[discrete_state_index(old_observation) + (action,)] = new_q
+
             if render:
                 game.draw()
-                time.sleep(0.015)
-                print(f"Q: {old_q:>2.4f}, new_q {new_q:>2.4}, reward: {reward:>3}")
+                time.sleep(0.03)
+                # print(f"Q: {old_q:>2.4f}, new_q {new_q:>2.4}, reward: {reward:>3}")
+                # print(f"q_table: {q_table[discrete_state_index(old_observation)]}")
             score += reward
 
         stats['episode'].append(episode)
@@ -534,7 +529,7 @@ if __name__ == "__main__":
         stats['score'].append(score)
         stats['food_eaten'].append(game.score)
 
-        if game.score > 0:
+        if game.score > 10:
             print(f"Ep[{episode:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
         # if render:
         #     input("Waiting...")
@@ -548,8 +543,8 @@ if __name__ == "__main__":
     pygame.quit()
 
     style.use('ggplot')
-    plt.scatter(stats['episode'][episode_offset:], stats['score'][episode_offset:], alpha=0.13, marker='s', edgecolors='m',
-                label="Score")
+    plt.scatter(stats['episode'][episode_offset:], stats['food_eaten'][episode_offset:], alpha=0.13, marker='s', edgecolors='m',
+                label="Food_eaten")
     plt.legend(loc=3)
-    plt.savefig(f"graphs/rewards-{episode_offset}-{episode_offset + EPISODES - 1}")
-    # plt.show()
+    # plt.savefig(f"graphs/rewards-{episode_offset}-{episode_offset + EPISODES - 1}")
+    plt.show()

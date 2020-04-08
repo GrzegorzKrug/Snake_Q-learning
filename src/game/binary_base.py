@@ -1,5 +1,6 @@
 import time
 
+
 def make_binary(num, base=2):
     text = ""
     max_val = 1
@@ -23,19 +24,8 @@ def make_binary(num, base=2):
     return text
 
 
-# def matrix_inverse(r, m):
-#     num_size = len(str(r ** m)) + 1
-#     for num in range(r ** m):
-#         bnum = make_binary(num, r).rjust(m, "0")
-#         rev_bnum = bnum[::-1]
-#         left = f"{num}".ljust(num_size, " ") + bnum
-#         right = rev_bnum + f" {int(rev_bnum, r)}"
-#
-#         print(left + " " + right)
-
-
 if __name__ == '__main__':
-    for x in range(239299329230617529590083):
+    for x in range(239299329230617529590083):  # this is big number :D
         out = list(str(make_binary(x, 3)))
         out.reverse()
         # print(out)
