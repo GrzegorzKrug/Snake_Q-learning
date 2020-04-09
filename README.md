@@ -33,6 +33,11 @@ Score is calculated as follows:
 
 ![Snake 2](./src/game/graphs/Snake2.png)
 
+![Snake 3](./src/game/graphs/Snake3.png)
+
+Snake 4 has higher epsilon earlier and 0 at 5000 episode.
+![Snake 4](./src/game/graphs/Snake4.png)
+
 #### Snake videos:
 
 link1 to be posted here

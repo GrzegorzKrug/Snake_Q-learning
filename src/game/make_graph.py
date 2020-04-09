@@ -5,7 +5,7 @@ import os
 import sys
 
 
-name = "Snake3"
+name = "Snake4"
 TIME_WINDOW = 1000
 FRAME = TIME_WINDOW // 2
 
