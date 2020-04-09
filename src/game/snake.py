@@ -448,10 +448,10 @@ if __name__ == "__main__":
     SHOW_EVERY = (EPISODES - 10) // 5
     # SHOW_EVERY = 1
     LEARNING_RATE = 0.2
-    DISCOUNT = 0.8
+    DISCOUNT = 0.95
 
     "Environment"
-    ACTIONS = 3  # 4 Moves possible
+    ACTIONS = 3  # Turn left, right or none
     MOVE_DIRECTIONS = 4  # state movement directions
     FIELD_STATES = 2
     VIEW_AREA = 9
@@ -459,9 +459,9 @@ if __name__ == "__main__":
 
     "Exploration"
     eps = 0.5
-    EPS_OFFSET = 0.001
+    EPS_OFFSET = 0
     EPS_START_DECAYING = 0
-    EPS_DECAY_AT = EPISODES // 5
+    EPS_DECAY_AT = EPISODES // 2
     eps_iterator = iter(np.linspace(eps, 0, EPS_DECAY_AT - EPS_START_DECAYING))
 
     "Q-Table initialization"
@@ -491,6 +491,7 @@ if __name__ == "__main__":
         else:
             render = False
 
+        game = None
         game = Game(food_ammount=1, render=render)
         valid = True
         observation = Game().reset()

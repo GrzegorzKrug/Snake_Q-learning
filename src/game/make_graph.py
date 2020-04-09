@@ -5,13 +5,13 @@ import os
 import sys
 
 
-name = "Snake1"
+name = "Snake3"
 TIME_WINDOW = 1000
 FRAME = TIME_WINDOW // 2
 
 avg = []
 avg_score = []
-stats = np.load("last_stats_0.npy", allow_pickle=True).item()
+stats = np.load("last_stats.npy", allow_pickle=True).item()
 
 
 for episode in stats['episode']:
@@ -40,7 +40,7 @@ plt.subplot(211)
 
 plt.scatter(stats['episode'], stats['food_eaten'], marker='s', alpha=0.1, c='g', label='Food-eaten')
 
-plt.title(f"{name}, alfa=0.1, discount=0.9")
+plt.title(f"{name}, alfa=0.2, discount=0.95")
 plt.plot(stats['episode'], avg, label='Average food', c='b')
 plt.ylabel("Food count")
 plt.legend(loc=2)
