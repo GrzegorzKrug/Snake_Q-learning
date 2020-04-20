@@ -1,33 +1,17 @@
-import pygame
-import numpy as np
-import time
 import matplotlib.pyplot as plt
+import tensorflow as tf
+import numpy as np
+import settings
+import datetime
+import pygame
+import keras
+import time
 import os
+
 from matplotlib import style
-
-
-class SquareMovement:
-    def __init__(self, dist=15, timeout=30):
-        self._now = -1
-        self.now = -1
-        self.dist = dist
-        self.A = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                  3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-                  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-                  1, 1, 1, 1, 1, 2]
-        self.timeout = len(self.A)
-
-    def __next__(self):
-        self._now += 1
-        if not self._now % self.dist:
-            self.now = (self.now + 1) % 4
-
-        if self._now >= self.timeout:
-            return 0
-        return self.A[self._now]
-
-    def __repr__(self):
-        return f"Square: {self.now}"
+from keras.models import Model
+from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input
+from keras.optimizers import Adam
 
 
 class Game:
@@ -57,7 +41,6 @@ class Game:
         self.done = False
         self.current_time = 0
 
-        self.square_move = SquareMovement()
         self.move_time = 1
 
         self.rect_size = 25
@@ -294,21 +277,6 @@ class Game:
             break
         self.food += [[rx, ry]]
 
-    # def play(self, delay=0.03):
-    #     valid = True
-    #     try:
-    #         index = 1
-    #         while valid:
-    #             valid, reward, state = self.step()
-    #
-    #             if self.render:
-    #                 self.draw()
-    #                 time.sleep(delay)
-    #             index += 1
-    #     finally:
-    #         if self.render:
-    #             pygame.display.quit()
-
     def reset(self):
         """
         Returns
@@ -394,6 +362,63 @@ class Game:
             # self.tail.pop(0)
 
 
+class Agent:
+    def __init__(self,
+                 model_name, minibatch_size, pic_size, direction_array_size,
+                 action_space,
+                 learining_rate=0.001):
+
+        self.model_name = model_name
+        dt = datetime.datetime.timetuple(datetime.datetime.now())
+        self.runtime_name = f"{model_name}--{dt.tm_mon:>02}-{dt.tm_mday:>02}-" \
+                            f"-{dt.tm_hour:>02}--{dt.tm_min:>02}-{dt.tm_sec:>02}"
+
+        self.minibatch_size = minibatch_size
+        self.pic_size = pic_size
+        self.direction_array_size = direction_array_size
+        self.action_space = action_space
+        self.learning_rate = learining_rate
+        self.model = self.create_model()
+
+    def create_model(self, a=None):
+        model = Model()
+
+        input_1 = Input(shape=self.pic_size)
+
+        layer_1 = Conv2D(64, (3, 3), padding='same', activation='relu')(input_1)
+        layer_1 = MaxPooling2D()(layer_1)
+
+        layer_1 = Conv2D(64, (3, 3), padding='same', activation='relu')(layer_1)
+        layer_1 = MaxPooling2D()(layer_1)
+        layer_1 = Flatten()(layer_1)
+
+        input_2 = Input(shape=self.direction_array_size)
+
+        merged_vector = keras.layers.concatenate([layer_1, input_2], axis=-1)
+
+        layer_3 = Dense(64, activation='relu')(merged_vector)
+        layer_4 = Dropout(0.2)(layer_3)
+        layer_5 = Dense(64, activation='relu')(layer_4)
+        output_layer = Dense(self.action_space, activation='linear')(layer_5)
+
+        model = Model(inputs=[input_1, input_2], outputs=output_layer)
+        model.compile(optimizer=Adam(lr=self.learning_rate),
+                      loss='mse',
+                      metrics=['accuracy'])
+        model.summary()
+        return a
+
+    def save_model(self):
+        self.model.save_weights(f"{self.model_name}/model", overwrite=True)
+
+    def load_model(self):
+        if LOAD_MODEL and os.path.isfile(f"{self.model_name}/model"):
+            print(f"Loading model: {self.model_name}")
+            self.model.load_weights(f"{self.model_name}/model")
+        else:
+            print(f"New model: {self.model_name}")
+
+
 def get_discrete_vals(q_table, observation):
     """
 
@@ -443,107 +468,118 @@ def discrete_state_index(observation):
 
 
 if __name__ == "__main__":
-    "Train"
-    EPISODES = 10_000
-    SHOW_EVERY = (EPISODES - 10) // 5
-    # SHOW_EVERY = 1
-    LEARNING_RATE = 0.2
-    DISCOUNT = 0.95
+    config = tf.compat.v1.ConfigProto()
+    config.gpu_options.allow_growth = False
+    config.gpu_options.per_process_gpu_memory_fraction = 0.3
+    sess = tf.compat.v1.Session(config=config)
+
+    EPOCHS = settings.EPOCHS
+    SIM_COUNT = settings.SIM_COUNT
+    MINIBATCH_SIZE = settings.MINIBATCH_SIZE
+
+    REPLAY_MEMORY_SIZE = settings.REPLAY_MEMORY_SIZE
+    MIN_REPLAY_MEMORY_SIZE = settings.MIN_REPLAY_MEMORY_SIZE
+
+    DISCOUNT = settings.DISCOUNT
+    AGENT_LR = settings.AGENT_LR
+
+    MODEL_NAME = settings.MODEL_NAME
+    LOAD_MODEL = settings.LOAD_MODEL
+    ALLOW_TRAIN = settings.ALLOW_TRAIN
+    SAVE_PICS = settings.SAVE_PICS
+
+    STATE_OFFSET = settings.STATE_OFFSET
+    FIRST_EPS = settings.FIRST_EPS
+    RAMP_EPS = settings.RAMP_EPS
+    INITIAL_SMALL_EPS = settings.INITIAL_SMALL_EPS
+    END_EPS = settings.END_EPS
+    EPS_END_AT = settings.EPS_END_AT
+
+    SHOW_EVERY = settings.SHOW_EVERY
+    TRAIN_EVERY = settings.TRAIN_EVERY
+    CLONE_EVERY_TRAIN = settings.CLONE_EVERY_TRAIN
+
+    SHOW_LAST = settings.SHOW_LAST
+    PLOT_ALL_QS = settings.PLOT_ALL_QS
+    COMBINE_QS = settings.COMBINE_QS
+
+    os.makedirs(MODEL_NAME, exist_ok=True)
 
     "Environment"
     ACTIONS = 3  # Turn left, right or none
-    MOVE_DIRECTIONS = 4  # state movement directions
     FIELD_STATES = 2
-    VIEW_AREA = 9
-    FOOD_SIZE = [3, 3]
+    VIEW_LEN = 8
+    VIEW_AREA = VIEW_LEN * 2 + 1
 
-    "Exploration"
-    eps = 0.5
-    EPS_OFFSET = 0
-    EPS_START_DECAYING = 0
-    EPS_DECAY_AT = EPISODES // 2
-    eps_iterator = iter(np.linspace(eps, 0, EPS_DECAY_AT - EPS_START_DECAYING))
+    stats = {
+        "episode": [],
+        "eps": [],
+        "score": [],
+        "food_eaten": []
+    }
+    episode_offset = 0
 
-    "Q-Table initialization"
-    size = [MOVE_DIRECTIONS] + FOOD_SIZE + [FIELD_STATES ** VIEW_AREA] + [ACTIONS]
-    try:
-        q_table = np.load('last_qtable.npy', allow_pickle=True)
-    except FileNotFoundError:
-        print(f"Creating new qtable!")
-        q_table = np.random.uniform(-1, 0, size=size)
-
-    try:
-        stats = np.load('last_stats.npy', allow_pickle=True).item()
-        episode_offset = stats['episode'][-1] + 1
-    except FileNotFoundError:
-        stats = {
-            "episode": [],
-            "eps": [],
-            "score": [],
-            "food_eaten": []
-        }
-        episode_offset = 0
-
-    for episode in range(0 + episode_offset, EPISODES + episode_offset):
-        # Show every and show last
-        if not episode % SHOW_EVERY or episode >= EPISODES + episode_offset - 1:
-            render = True
-        else:
-            render = False
-
-        game = None
-        game = Game(food_ammount=1, render=render)
-        valid = True
-        observation = Game().reset()
-        score = 0
-
-        if EPS_DECAY_AT + episode_offset > episode >= EPS_START_DECAYING + episode_offset:
-            eps = next(eps_iterator) + EPS_OFFSET
-        else:
-            eps = EPS_OFFSET
-        while valid:
-            old_observation = observation
-            current_q_values = get_discrete_vals(q_table, old_observation)
-
-            if eps > np.random.random():
-                action = np.random.randint(0, ACTIONS)
-            else:
-                action = np.argmax(current_q_values)
-
-            old_q = current_q_values[action]
-
-            valid, reward, observation = game.step(action=action)
-            max_future_q = max(get_discrete_vals(q_table, observation))
-            new_q = (1 - LEARNING_RATE) * old_q \
-                + LEARNING_RATE * (reward + DISCOUNT * max_future_q)
-            q_table[discrete_state_index(old_observation) + (action,)] = new_q
-
-            if render:
-                game.draw()
-                time.sleep(0.03)
-            score += reward
-
-        stats['episode'].append(episode)
-        stats['eps'].append(eps)
-        stats['score'].append(score)
-        stats['food_eaten'].append(game.score)
-
-        if game.score > 10:
-            print(f"Ep[{episode:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
-
-    # Saving outputs
-    os.makedirs('graphs', exist_ok=True)
-
-    np.save('last_qtable.npy', q_table)
-    np.save('last_stats.npy', stats)
-
-    pygame.quit()
-
-    style.use('ggplot')
-    plt.scatter(
-            stats['episode'][episode_offset:],
-            stats['food_eaten'][episode_offset:],
-            alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
-    )
-    plt.legend(loc=3)
-    plt.show()
+    agent = Agent("test", minibatch_size=MINIBATCH_SIZE,
+                  pic_size=(VIEW_AREA, VIEW_AREA, 1,),
+                  direction_array_size=(2,),
+                  action_space=3)
+    #
+    for episode in range(0 + episode_offset, EPOCHS + episode_offset):
+        pass
+    #     if not episode % SHOW_EVERY or episode >= EPISODES + episode_offset - 1:
+    #         render = True
+    #     else:
+    #         render = False
+    #
+    #     game = None
+    #     game = Game(food_ammount=1, render=render, view_len=10)
+    #     valid = True
+    #     observation = Game().reset()
+    #     score = 0
+    #
+    #
+    #     eps
+    #
+    #     while valid:
+    #         old_observation = observation
+    #
+    #         if eps > np.random.random():
+    #             action = np.random.randint(0, ACTIONS)
+    #         else:
+    #             predict
+    #
+    #
+    #
+    #         valid, reward, observation = game.step(action=action)
+    #
+    #         train
+    #
+    #         if render:
+    #             game.draw()
+    #             time.sleep(0.03)
+    #         score += reward
+    #
+    #     stats['episode'].append(episode)
+    #     stats['eps'].append(eps)
+    #     stats['score'].append(score)
+    #     stats['food_eaten'].append(game.score)
+    #
+    #     if game.score > 10:
+    #         print(f"Ep[{episode:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
+    #
+    # # Saving outputs
+    # os.makedirs('graphs', exist_ok=True)
+    #
+    # np.save('last_qtable.npy', q_table)
+    # np.save('last_stats.npy', stats)
+    #
+    # pygame.quit()
+    #
+    # style.use('ggplot')
+    # plt.scatter(
+    #         stats['episode'][episode_offset:],
+    #         stats['food_eaten'][episode_offset:],
+    #         alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
+    # )
+    # plt.legend(loc=3)
+    # plt.show()
