@@ -10,8 +10,9 @@ import time
 import os
 
 from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input
-from keras.optimizers import Adam
 from keras.models import Model, load_model
+from keras.utils import plot_model
+from keras.optimizers import Adam
 from matplotlib import style
 from collections import deque
 
@@ -232,6 +233,11 @@ class Game:
                         view_area[iy, ix] = 1
                         break
 
+                for food in self.food:
+                    if [x, y] == food:
+                        view_area[iy, ix] = 2
+                        break
+
         if len(self.food) > 0:
             food = self.food[0]
         else:
@@ -323,7 +329,7 @@ class Game:
         self.update_tail()
         reward = self.eat_food() * 10  # Eaten food is worth 5
         if not FREE_MOVE:
-            reward -= 0.1
+            reward -= 1
         state = self.observation()
 
         if not f_run:  # Dead
@@ -333,7 +339,7 @@ class Game:
         if self.current_time >= self.time_out:
             print(f"Timeout! score: {self.score}")
             self.done = True
-            reward = -5
+            reward = -1
 
         return self.done, reward, state
 
@@ -372,13 +378,16 @@ class Agent:
         else:
             self.model = self.create_model()
 
+        # with open(f"{MODEL_NAME}/model_summary.txt", 'w') as file:
+        #     self.model.summary(print_fn=lambda x: file.write(x + '\n'))
+
     def create_model(self):
         input_1 = Input(shape=self.pic_size)
 
-        layer_1 = Conv2D(32, (3, 3), padding='same', activation='relu')(input_1)
+        layer_1 = Conv2D(32, (5, 5), padding='same', activation='relu')(input_1)
         layer_1 = MaxPooling2D()(layer_1)
-        layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
-        layer_1 = MaxPooling2D()(layer_1)
+        # layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
+        # layer_1 = MaxPooling2D()(layer_1)
         layer_1 = Flatten()(layer_1)
         layer_1 = Dense(32, activation='relu')(layer_1)
 
@@ -396,7 +405,11 @@ class Agent:
         model.compile(optimizer=Adam(lr=self.learning_rate),
                       loss='mse',
                       metrics=['accuracy'])
-        # model.summary()
+
+        plot_model(model, f"{MODEL_NAME}/model.png")
+        with open(f"{MODEL_NAME}/model_summary.txt", 'w') as file:
+            model.summary(print_fn=lambda x: file.write(x + '\n'))
+
         return model
 
     def update_memory(self, state):
@@ -532,7 +545,6 @@ if __name__ == "__main__":
     EPS_INTERVAL = settings.EPS_INTERVAL
 
     SHOW_EVERY = settings.SHOW_EVERY
-    TRAIN_EVERY = settings.TRAIN_EVERY
 
     SHOW_LAST = settings.SHOW_LAST
     PLOT_ALL_QS = settings.PLOT_ALL_QS
@@ -566,35 +578,39 @@ if __name__ == "__main__":
         episode_offset = 0
 
     eps_iter = iter(np.linspace(RAMP_EPS, END_EPS, EPS_INTERVAL))
-
+    time_start = time.time()
     for episode in range(0, EPOCHS):
-        agent.train()
-        if not episode % 1000:
-            agent.save_model()
-            np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
-        if not episode % SHOW_EVERY:
-            render = True
-        else:
-            render = False
+        if ALLOW_TRAIN:
+            agent.train()
+            if not episode % 1000:
+                agent.save_model()
+                np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
+            if not episode % SHOW_EVERY:
+                render = True
+            else:
+                render = False
 
-        if episode == EPOCHS - 1:
-            eps = 0
-            render = True
-            if SHOW_LAST:
-                input("Last agent is waiting...")
-        elif episode == 0:
-            eps = 0
-            render = True
-        elif episode < EPS_INTERVAL / 2:
-            eps = FIRST_EPS
-        elif episode < EPS_INTERVAL:
-            eps = 0.3
+            if episode == EPOCHS - 1:
+                eps = 0
+                render = True
+                if SHOW_LAST:
+                    input("Last agent is waiting...")
+            elif episode == 0:
+                eps = 0
+                render = True
+            elif episode < EPS_INTERVAL / 2:
+                eps = FIRST_EPS
+            elif episode < EPS_INTERVAL:
+                eps = 0.3
+            else:
+                try:
+                    eps = next(eps_iter)
+                except StopIteration:
+                    eps_iter = iter(np.linspace(INITIAL_SMALL_EPS, END_EPS, EPS_INTERVAL))
+                    eps = next(eps_iter)
         else:
-            try:
-                eps = next(eps_iter)
-            except StopIteration:
-                eps_iter = iter(np.linspace(INITIAL_SMALL_EPS, END_EPS, EPS_INTERVAL))
-                eps = next(eps_iter)
+            render = True
+            eps = 0
 
         game = None  # Close screen
         game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
@@ -604,7 +620,7 @@ if __name__ == "__main__":
         score = 0
         step = 0
         while not done:
-            if render and step > 500:
+            if render and step > 700:
                 render = False
                 print("Render stopped.")
             step += 1
@@ -628,7 +644,7 @@ if __name__ == "__main__":
 
             if render:
                 game.draw()
-                time.sleep(0.001)
+                time.sleep(0.008)
             score += reward
 
         stats['episode'].append(episode+episode_offset)
@@ -639,8 +655,8 @@ if __name__ == "__main__":
         print(f"Ep[{episode+episode_offset:^7} of {EPOCHS+episode_offset}], food_eaten:{game.score:^3}, "
               f"Eps: {eps:>1.3f}, reward: {score:<6.1f}")
 
+    time_end = time.time()
     pygame.quit()
-
     style.use('ggplot')
     plt.figure(figsize=(20, 11))
     plt.subplot(211)
@@ -656,7 +672,8 @@ if __name__ == "__main__":
     plt.plot(stats['episode'], stats['score'], label='Score')
     plt.xlabel("Epoch")
     plt.legend(loc='best')
-    plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
+    if SAVE_PICS:
+        plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
 
     plt.figure(figsize=(20, 11))
     samples = []
@@ -671,12 +688,17 @@ if __name__ == "__main__":
               "Left Green, Red None, Blue Right")
     plt.xlabel("Sample")
     plt.ylabel("Q-value")
-    plt.savefig(f"{MODEL_NAME}/Qs-{agent.runtime_name}.png")
-    plt.grid()
+    if SAVE_PICS:
+        plt.savefig(f"{MODEL_NAME}/Qs-{agent.runtime_name}.png")
 
-    agent.save_model()
+    if ALLOW_TRAIN:
+        agent.save_model()
+        np.save(f"{MODEL_NAME}/last-episode-num.npy", EPOCHS + episode_offset)
 
-    np.save(f"{MODEL_NAME}/last-episode-num.npy", EPOCHS + episode_offset)
     print(f"Run ended: {MODEL_NAME}")
-    # plt.show()
+    print(f"Time elapsed: {(time_end-time_start)/60:3.1f}m, "
+          f"{(time_end-time_start)/EPOCHS:3.1f} s per episode")
+
+    if not SAVE_PICS:
+        plt.show()
 
