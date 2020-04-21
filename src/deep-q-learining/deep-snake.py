@@ -20,7 +20,7 @@ class Game:
     _count = 0
 
     def __init__(self, width=1.4e3, height=8e2, render=False, food_ammount=3,
-                 view_len=4, time_out=10000):
+                 view_len=4, time_out=3000):
         if render:
             pygame.init()
             width = int(width)
@@ -331,9 +331,9 @@ class Game:
             reward = -50
 
         if self.current_time >= self.time_out:
-            f_run = False
             print(f"Timeout! score: {self.score}")
             self.done = True
+            reward = -5
 
         return self.done, reward, state
 
@@ -375,20 +375,21 @@ class Agent:
     def create_model(self):
         input_1 = Input(shape=self.pic_size)
 
-        layer_1 = Conv2D(16, (3, 3), padding='same', activation='relu')(input_1)
+        layer_1 = Conv2D(32, (3, 3), padding='same', activation='relu')(input_1)
         layer_1 = MaxPooling2D()(layer_1)
-
-        layer_1 = Conv2D(16, (2, 2), padding='same', activation='relu')(layer_1)
+        layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
         layer_1 = MaxPooling2D()(layer_1)
         layer_1 = Flatten()(layer_1)
+        layer_1 = Dense(32, activation='relu')(layer_1)
 
         input_2 = Input(shape=self.direction_with_food_array)
-        layer_2_1 = Dense(8, activation='relu')(input_2)
+        layer_2_1 = Dense(16, activation='relu')(input_2)
+
         merged_vector = keras.layers.concatenate([layer_1, layer_2_1], axis=-1)
 
-        layer_3 = Dense(32, activation='relu')(merged_vector)
-        layer_4 = Dropout(0.2)(layer_3)
-        layer_5 = Dense(32, activation='relu')(layer_4)
+        # layer_3 = Dense(32, activation='relu')(merged_vector)
+        layer_4 = Dropout(0.2)(merged_vector)
+        layer_5 = Dense(16, activation='relu')(layer_4)
         output_layer = Dense(self.action_space, activation='linear')(layer_5)
 
         model = Model(inputs=[input_1, input_2], outputs=output_layer)
@@ -601,7 +602,12 @@ if __name__ == "__main__":
         area, more_info = state
         done = False
         score = 0
+        step = 0
         while not done:
+            if render and step > 500:
+                render = False
+                print("Render stopped.")
+            step += 1
             old_state = state
 
             if eps > np.random.random():
@@ -622,7 +628,7 @@ if __name__ == "__main__":
 
             if render:
                 game.draw()
-                time.sleep(0.02)
+                time.sleep(0.001)
             score += reward
 
         stats['episode'].append(episode+episode_offset)
@@ -647,7 +653,7 @@ if __name__ == "__main__":
     plt.legend(loc='best')
 
     plt.subplot(212)
-    plt.plot(stats['episode'], stats['eps'], label='Epsilon')
+    plt.plot(stats['episode'], stats['score'], label='Score')
     plt.xlabel("Epoch")
     plt.legend(loc='best')
     plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
@@ -671,5 +677,6 @@ if __name__ == "__main__":
     agent.save_model()
 
     np.save(f"{MODEL_NAME}/last-episode-num.npy", EPOCHS + episode_offset)
-    plt.show()
+    print(f"Run ended: {MODEL_NAME}")
+    # plt.show()
 
