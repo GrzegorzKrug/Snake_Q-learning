@@ -375,10 +375,10 @@ class Agent:
     def create_model(self):
         input_1 = Input(shape=self.pic_size)
 
-        layer_1 = Conv2D(32, (3, 3), padding='same', activation='relu')(input_1)
+        layer_1 = Conv2D(16, (3, 3), padding='same', activation='relu')(input_1)
         layer_1 = MaxPooling2D()(layer_1)
 
-        layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
+        layer_1 = Conv2D(16, (2, 2), padding='same', activation='relu')(layer_1)
         layer_1 = MaxPooling2D()(layer_1)
         layer_1 = Flatten()(layer_1)
 
@@ -423,11 +423,13 @@ class Agent:
         new_info = []
         rewards = []
         done_list = []
+        actions = []
         for old_state, new_state, reward, action, done in train_data:
             old_view.append(old_state[0])
             old_info.append(old_state[1])
             new_view.append(new_state[0])
             new_info.append(new_state[1])
+            actions.append(action)
             rewards.append(reward)
             done_list.append(done)
 
@@ -439,13 +441,13 @@ class Agent:
         old_qs = self.model.predict([input1, input2])
         new_qs = self.model.predict([input3, input4])
 
-        for old_q, new_q, rew, done in zip(old_qs, new_qs, rewards, done_list):
-            act = np.argmax(new_q)
-            future_val = new_q[act]
+        for old_q, new_q, rew, act, done in zip(old_qs, new_qs,
+                                                rewards, actions, done_list):
             if done:
                 old_q[act] = rew
             else:
-                old_q[act] = rew + DISCOUNT * future_val
+                future_best_val = np.max(new_q)
+                old_q[act] = rew + DISCOUNT * future_best_val
 
         self.model.fit([input1, input2], old_qs,
                        verbose=0, shuffle=False, epochs=1)
@@ -569,7 +571,6 @@ if __name__ == "__main__":
         if not episode % 1000:
             agent.save_model()
             np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
-
         if not episode % SHOW_EVERY:
             render = True
         else:
