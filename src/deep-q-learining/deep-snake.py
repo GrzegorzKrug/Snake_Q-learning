@@ -4,6 +4,7 @@ import numpy as np
 import settings
 import datetime
 import pygame
+import random
 import keras
 import time
 import os
@@ -241,7 +242,7 @@ class Game:
                 (food[0] - self.x)/self.width,
                 (self.y - food[1])/self.height]
 
-        out = food_info + [self.direction]
+        out = food_info + [self.direction / 4]
         state = (view_area, out)
         return state
 
@@ -345,13 +346,12 @@ class Game:
 
 class Agent:
     def __init__(self,
-                 model_name, minibatch_size, pic_size, direction_with_food_array,
+                 minibatch_size, pic_size, direction_with_food_array,
                  action_space,
                  learining_rate=0.001):
 
-        self.model_name = model_name
         dt = datetime.datetime.timetuple(datetime.datetime.now())
-        self.runtime_name = f"{model_name}--{dt.tm_mon:>02}-{dt.tm_mday:>02}-" \
+        self.runtime_name = f"{MODEL_NAME}--{dt.tm_mon:>02}-{dt.tm_mday:>02}-" \
                             f"-{dt.tm_hour:>02}--{dt.tm_min:>02}-{dt.tm_sec:>02}"
 
         self.minibatch_size = minibatch_size
@@ -392,7 +392,7 @@ class Agent:
         self.memory.append(state)
 
     def save_model(self):
-        self.model.save_weights(f"{self.model_name}/model", overwrite=True)
+        self.model.save_weights(f"{MODEL_NAME}/model", overwrite=True)
 
     def load_model(self):
         if LOAD_MODEL and os.path.isfile(f"{self.model_name}/model"):
@@ -400,6 +400,40 @@ class Agent:
             self.model.load_weights(f"{self.model_name}/model")
         else:
             print(f"New model: {self.model_name}")
+
+    def train(self):
+        if len(self.memory) < MINIBATCH_SIZE:
+            return None
+
+        train_data = random.sample(self.memory, MINIBATCH_SIZE)
+
+        old_view = []
+        old_info = []
+        new_view = []
+        new_info = []
+        rewards = []
+        for old_state, new_state, reward, action in train_data:
+            old_view.append(old_state[0])
+            old_info.append(old_state[1])
+            new_view.append(new_state[0])
+            new_info.append(new_state[1])
+            rewards.append(reward)
+
+        input1 = np.array(old_view).reshape(-1, VIEW_AREA, VIEW_AREA, 1)
+        input2 = np.array(old_info)
+        input3 = np.array(new_view).reshape(-1, VIEW_AREA, VIEW_AREA, 1)
+        input4 = np.array(new_info)
+
+        old_qs = self.model.predict([input1, input2])
+        new_qs = self.model.predict([input3, input4])
+
+        for old_q, new_q, rew in zip(old_qs, new_qs, rewards):
+            act = np.argmax(new_q)
+            future_val = new_q[act]
+            old_q[act] = rew + DISCOUNT * future_val
+
+        self.model.fit([input1, input2], old_qs,
+                       verbose=0, shuffle=False, epochs=1)
 
 
 def get_discrete_vals(q_table, observation):
@@ -503,7 +537,7 @@ if __name__ == "__main__":
         "food_eaten": []
     }
 
-    agent = Agent("test", minibatch_size=MINIBATCH_SIZE,
+    agent = Agent(minibatch_size=MINIBATCH_SIZE,
                   pic_size=(VIEW_AREA, VIEW_AREA, 1,),
                   direction_with_food_array=(3,),
                   action_space=3)
@@ -516,6 +550,7 @@ if __name__ == "__main__":
     eps_iter = iter(np.linspace(RAMP_EPS, END_EPS, EPS_INTERVAL))
 
     for episode in range(0, EPOCHS):
+        agent.train()
         if episode == EPOCHS - 1 or episode == 0:
             eps = 0
             render = True
@@ -560,6 +595,7 @@ if __name__ == "__main__":
                     Predicts[1].append(prediction[action])
 
             done, reward, state = game.step(action=action)
+            agent.update_memory((state, old_state, reward, action))
 
             if render:
                 game.draw()
@@ -573,10 +609,6 @@ if __name__ == "__main__":
 
         print(f"Ep[{episode:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
 
-    # Saving outputs
-    os.makedirs('graphs', exist_ok=True)
-
-
     pygame.quit()
 
     style.use('ggplot')
@@ -585,8 +617,27 @@ if __name__ == "__main__":
             stats['food_eaten'][episode_offset:],
             alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
     )
-    plt.legend(loc=3)
+    plt.legend(loc='best')
+
+    plt.figure(figsize=(16, 9))
+
+    samples = []
+    colors = []
+
+    for action, q_val in zip(Predicts[0], Predicts[1]):
+        color = 'g' if action == 0 else 'm' if action == 1 else 'b'
+        samples.append(q_val)
+        colors.append(color)
+    plt.scatter(range(len(samples)), samples, c=colors, alpha=0.3, s=10, marker='.')
+    plt.title("Movement evolution in time:\n"
+              "Left Green, Red None, Blue Right")
+    plt.xlabel("Sample")
+    plt.ylabel("Q-value")
+    plt.savefig(f"{MODEL_NAME}/Qs-{agent.runtime_name}.png")
+    plt.grid()
     plt.show()
+
+agent.save_model()
 
 np.save(f"{MODEL_NAME}/last-episode-num.npy", EPOCHS + episode_offset)
 
