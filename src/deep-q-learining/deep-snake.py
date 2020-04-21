@@ -11,7 +11,7 @@ import os
 
 from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input
 from keras.optimizers import Adam
-from keras.models import Model
+from keras.models import Model, load_model
 from matplotlib import style
 from collections import deque
 
@@ -321,7 +321,9 @@ class Game:
             _color = (130, 255, 255)
 
         self.update_tail()
-        reward = self.eat_food() * 5 - 0.1  # Eaten food is worth 5
+        reward = self.eat_food() * 10  # Eaten food is worth 5
+        if not FREE_MOVE:
+            reward -= 0.1
         state = self.observation()
 
         if not f_run:  # Dead
@@ -360,8 +362,15 @@ class Agent:
         self.action_space = action_space
         self.learning_rate = learining_rate
         self.memory = deque(maxlen=REPLAY_MEMORY_SIZE)
-        self.model = self.create_model()
-        self.load_model()
+        if LOAD_MODEL:
+            load_success = self.load_model()
+            if load_success:
+                print(f"Loading model: {MODEL_NAME}")
+            else:
+                print(f"New model: {MODEL_NAME}")
+                self.model = self.create_model()
+        else:
+            self.model = self.create_model()
 
     def create_model(self):
         input_1 = Input(shape=self.pic_size)
@@ -369,13 +378,13 @@ class Agent:
         layer_1 = Conv2D(32, (3, 3), padding='same', activation='relu')(input_1)
         layer_1 = MaxPooling2D()(layer_1)
 
-        layer_1 = Conv2D(32, (3, 3), padding='same', activation='relu')(layer_1)
+        layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
         layer_1 = MaxPooling2D()(layer_1)
         layer_1 = Flatten()(layer_1)
 
         input_2 = Input(shape=self.direction_with_food_array)
-
-        merged_vector = keras.layers.concatenate([layer_1, input_2], axis=-1)
+        layer_2_1 = Dense(8, activation='relu')(input_2)
+        merged_vector = keras.layers.concatenate([layer_1, layer_2_1], axis=-1)
 
         layer_3 = Dense(32, activation='relu')(merged_vector)
         layer_4 = Dropout(0.2)(layer_3)
@@ -393,14 +402,15 @@ class Agent:
         self.memory.append(state)
 
     def save_model(self):
-        self.model.save_weights(f"{MODEL_NAME}/model", overwrite=True)
+        # self.model.save_weights(f"{MODEL_NAME}/model", overwrite=True)
+        self.model.save(f"{MODEL_NAME}/model")
 
     def load_model(self):
         if LOAD_MODEL and os.path.isfile(f"{MODEL_NAME}/model"):
-            print(f"Loading model: {MODEL_NAME}")
-            self.model.load_weights(f"{MODEL_NAME}/model")
+            self.model = load_model(f"{MODEL_NAME}/model")
+            return True
         else:
-            print(f"New model: {MODEL_NAME}")
+            return False
 
     def train(self):
         if len(self.memory) < MINIBATCH_SIZE:
@@ -504,6 +514,7 @@ if __name__ == "__main__":
 
     DISCOUNT = settings.DISCOUNT
     AGENT_LR = settings.AGENT_LR
+    FREE_MOVE = settings.FREE_MOVE
 
     MODEL_NAME = settings.MODEL_NAME
     LOAD_MODEL = settings.LOAD_MODEL
@@ -555,6 +566,9 @@ if __name__ == "__main__":
 
     for episode in range(0, EPOCHS):
         agent.train()
+        if not episode % 1000:
+            agent.save_model()
+            np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
 
         if not episode % SHOW_EVERY:
             render = True
@@ -569,9 +583,9 @@ if __name__ == "__main__":
         elif episode == 0:
             eps = 0
             render = True
-        elif episode < EPOCHS // 5:
+        elif episode < EPS_INTERVAL / 2:
             eps = FIRST_EPS
-        elif episode < EPOCHS // 3:
+        elif episode < EPS_INTERVAL:
             eps = 0.3
         else:
             try:
@@ -584,7 +598,6 @@ if __name__ == "__main__":
         game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
         state = game.reset()
         area, more_info = state
-
         done = False
         score = 0
         while not done:
