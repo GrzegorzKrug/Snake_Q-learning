@@ -625,7 +625,7 @@ if __name__ == "__main__":
     plt.subplot(311)
     plt.title("Food eaten")
     plt.scatter(
-            np.array(stats['episode'])+episode_offset,
+            np.array(stats['episode']),
             stats['food_eaten'],
             alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
     )
