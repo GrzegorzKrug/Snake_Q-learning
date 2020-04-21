@@ -421,9 +421,9 @@ class Agent:
             rewards.append(reward)
             done_list.append(done)
 
-        input1 = np.array(old_view).reshape(-1, VIEW_AREA, VIEW_AREA, 1)
+        input1 = np.array(old_view).reshape((-1, VIEW_AREA, VIEW_AREA, 1))
         input2 = np.array(old_info)
-        input3 = np.array(new_view).reshape(-1, VIEW_AREA, VIEW_AREA, 1)
+        input3 = np.array(new_view).reshape((-1, VIEW_AREA, VIEW_AREA, 1))
         input4 = np.array(new_info)
 
         old_qs = self.model.predict([input1, input2])
@@ -536,10 +536,10 @@ if __name__ == "__main__":
     Predicts = [[], []]
 
     stats = {
-        "episode": [],
-        "eps": [],
-        "score": [],
-        "food_eaten": []
+            "episode": [],
+            "eps": [],
+            "score": [],
+            "food_eaten": []
     }
 
     agent = Agent(minibatch_size=MINIBATCH_SIZE,
@@ -556,7 +556,18 @@ if __name__ == "__main__":
 
     for episode in range(0, EPOCHS):
         agent.train()
-        if episode == EPOCHS - 1 or episode == 0:
+
+        if not episode % SHOW_EVERY:
+            render = True
+        else:
+            render = False
+
+        if episode == EPOCHS - 1:
+            eps = 0
+            render = True
+            if SHOW_LAST:
+                input("Last agent is waiting...")
+        elif episode == 0:
             eps = 0
             render = True
         elif episode < EPOCHS // 5:
@@ -569,11 +580,6 @@ if __name__ == "__main__":
             except StopIteration:
                 eps_iter = iter(np.linspace(INITIAL_SMALL_EPS, END_EPS, EPS_INTERVAL))
                 eps = next(eps_iter)
-
-        if not episode % SHOW_EVERY:
-            render = True
-        else:
-            render = False
 
         game = None  # Close screen
         game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
@@ -604,7 +610,8 @@ if __name__ == "__main__":
 
             if render:
                 game.draw()
-                time.sleep(0.03)
+                print(reward)
+                time.sleep(0.05)
             score += reward
 
         stats['episode'].append(episode)
@@ -612,12 +619,14 @@ if __name__ == "__main__":
         stats['score'].append(score)
         stats['food_eaten'].append(game.score)
 
-        print(f"Ep[{episode:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
+        print(f"Ep[{episode+episode_offset:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
 
     pygame.quit()
 
     style.use('ggplot')
+    plt.figure(figsize=(20, 11))
     plt.subplot(211)
+    plt.title("Food eaten")
     plt.scatter(
             np.array(stats['episode'])+episode_offset,
             stats['food_eaten'],
@@ -629,8 +638,9 @@ if __name__ == "__main__":
     plt.plot(np.array(stats['episode'])+episode_offset, stats['eps'], label='Epsilon')
     plt.xlabel("Epoch")
     plt.legend(loc='best')
+    plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
 
-    plt.figure(figsize=(16, 9))
+    plt.figure(figsize=(20, 11))
     samples = []
     colors = []
     for action, q_val in zip(Predicts[0], Predicts[1]):
@@ -645,9 +655,9 @@ if __name__ == "__main__":
     plt.ylabel("Q-value")
     plt.savefig(f"{MODEL_NAME}/Qs-{agent.runtime_name}.png")
     plt.grid()
-    plt.show()
 
     agent.save_model()
 
     np.save(f"{MODEL_NAME}/last-episode-num.npy", EPOCHS + episode_offset)
+    plt.show()
 
