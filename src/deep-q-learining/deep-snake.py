@@ -564,7 +564,8 @@ if __name__ == "__main__":
             "episode": [],
             "eps": [],
             "score": [],
-            "food_eaten": []
+            "food_eaten": [],
+            "moves": []
     }
 
     agent = Agent(minibatch_size=MINIBATCH_SIZE,
@@ -651,6 +652,7 @@ if __name__ == "__main__":
         stats['eps'].append(eps)
         stats['score'].append(score)
         stats['food_eaten'].append(game.score)
+        stats['moves'].append(step)
 
         print(f"Ep[{episode+episode_offset:^7} of {EPOCHS+episode_offset}], food_eaten:{game.score:^3}, "
               f"Eps: {eps:>1.3f}, reward: {score:<6.1f}")
@@ -659,7 +661,7 @@ if __name__ == "__main__":
     pygame.quit()
     style.use('ggplot')
     plt.figure(figsize=(20, 11))
-    plt.subplot(211)
+    plt.subplot(311)
     plt.title("Food eaten")
     plt.scatter(
             np.array(stats['episode'])+episode_offset,
@@ -668,10 +670,18 @@ if __name__ == "__main__":
     )
     plt.legend(loc='best')
 
-    plt.subplot(212)
+    plt.subplot(312)
     plt.plot(stats['episode'], stats['score'], label='Score')
     plt.xlabel("Epoch")
     plt.legend(loc='best')
+
+    plt.subplot(313)
+    effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
+    plt.plot(stats['episode'], effectiveness, label='Effectiveness')
+    plt.xlabel("Epoch")
+    plt.legend(loc='best')
+
+
     if SAVE_PICS:
         plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
 
