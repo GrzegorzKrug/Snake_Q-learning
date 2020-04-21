@@ -321,12 +321,12 @@ class Game:
             _color = (130, 255, 255)
 
         self.update_tail()
-        reward = self.eat_food() * 5 - 1  # Eaten food is worth 5
+        reward = self.eat_food() * 5 - 0.1  # Eaten food is worth 5
         state = self.observation()
 
         if not f_run:  # Dead
             self.done = True
-            reward = -10
+            reward = -50
 
         if self.current_time >= self.time_out:
             f_run = False
@@ -519,7 +519,6 @@ if __name__ == "__main__":
 
     SHOW_EVERY = settings.SHOW_EVERY
     TRAIN_EVERY = settings.TRAIN_EVERY
-    CLONE_EVERY_TRAIN = settings.CLONE_EVERY_TRAIN
 
     SHOW_LAST = settings.SHOW_LAST
     PLOT_ALL_QS = settings.PLOT_ALL_QS
@@ -600,7 +599,8 @@ if __name__ == "__main__":
 
                 prediction = agent.model.predict([area, more_info])[0]
                 action = np.argmax(prediction)
-
+                if render:
+                    print(prediction)
                 if PLOT_ALL_QS:
                     Predicts[0].append(action)
                     Predicts[1].append(prediction[action])
@@ -610,16 +610,16 @@ if __name__ == "__main__":
 
             if render:
                 game.draw()
-                print(reward)
-                time.sleep(0.05)
+                time.sleep(0.02)
             score += reward
 
-        stats['episode'].append(episode)
+        stats['episode'].append(episode+episode_offset)
         stats['eps'].append(eps)
         stats['score'].append(score)
         stats['food_eaten'].append(game.score)
 
-        print(f"Ep[{episode+episode_offset:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
+        print(f"Ep[{episode+episode_offset:^7} of {EPOCHS+episode_offset}], food_eaten:{game.score:^3}, "
+              f"Eps: {eps:>1.3f}, reward: {score:<6}")
 
     pygame.quit()
 
@@ -635,7 +635,7 @@ if __name__ == "__main__":
     plt.legend(loc='best')
 
     plt.subplot(212)
-    plt.plot(np.array(stats['episode'])+episode_offset, stats['eps'], label='Epsilon')
+    plt.plot(stats['episode'], stats['eps'], label='Epsilon')
     plt.xlabel("Epoch")
     plt.legend(loc='best')
     plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
