@@ -359,8 +359,9 @@ class Agent:
         self.direction_with_food_array = direction_with_food_array
         self.action_space = action_space
         self.learning_rate = learining_rate
-        self.model = self.create_model()
         self.memory = deque(maxlen=REPLAY_MEMORY_SIZE)
+        self.model = self.create_model()
+        self.load_model()
 
     def create_model(self):
         input_1 = Input(shape=self.pic_size)
@@ -395,23 +396,23 @@ class Agent:
         self.model.save_weights(f"{MODEL_NAME}/model", overwrite=True)
 
     def load_model(self):
-        if LOAD_MODEL and os.path.isfile(f"{self.model_name}/model"):
-            print(f"Loading model: {self.model_name}")
-            self.model.load_weights(f"{self.model_name}/model")
+        if LOAD_MODEL and os.path.isfile(f"{MODEL_NAME}/model"):
+            print(f"Loading model: {MODEL_NAME}")
+            self.model.load_weights(f"{MODEL_NAME}/model")
         else:
-            print(f"New model: {self.model_name}")
+            print(f"New model: {MODEL_NAME}")
 
     def train(self):
         if len(self.memory) < MINIBATCH_SIZE:
             return None
 
         train_data = random.sample(self.memory, MINIBATCH_SIZE)
-
         old_view = []
         old_info = []
         new_view = []
         new_info = []
         rewards = []
+        
         for old_state, new_state, reward, action in train_data:
             old_view.append(old_state[0])
             old_info.append(old_state[1])
@@ -595,7 +596,7 @@ if __name__ == "__main__":
                     Predicts[1].append(prediction[action])
 
             done, reward, state = game.step(action=action)
-            agent.update_memory((state, old_state, reward, action))
+            agent.update_memory((old_state, state, reward, action))
 
             if render:
                 game.draw()
@@ -612,18 +613,23 @@ if __name__ == "__main__":
     pygame.quit()
 
     style.use('ggplot')
+    plt.subplot(211)
     plt.scatter(
-            stats['episode'][episode_offset:],
-            stats['food_eaten'][episode_offset:],
+            np.array(stats['episode'])+episode_offset,
+            stats['food_eaten'],
             alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
     )
     plt.legend(loc='best')
 
-    plt.figure(figsize=(16, 9))
+    plt.subplot(212)
+    plt.plot(np.array(stats['episode'])+episode_offset,
+             stats['eps'], label='Epsilon')
+    plt.xlabel("Epoch")
+    plt.legend(loc='best')
 
+    plt.figure(figsize=(16, 9))
     samples = []
     colors = []
-
     for action, q_val in zip(Predicts[0], Predicts[1]):
         color = 'g' if action == 0 else 'm' if action == 1 else 'b'
         samples.append(q_val)
@@ -637,7 +643,7 @@ if __name__ == "__main__":
     plt.grid()
     plt.show()
 
-agent.save_model()
+    agent.save_model()
 
-np.save(f"{MODEL_NAME}/last-episode-num.npy", EPOCHS + episode_offset)
+    np.save(f"{MODEL_NAME}/last-episode-num.npy", EPOCHS + episode_offset)
 
