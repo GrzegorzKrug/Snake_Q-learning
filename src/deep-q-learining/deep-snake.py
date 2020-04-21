@@ -22,6 +22,17 @@ class Game:
 
     def __init__(self, width=1.4e3, height=8e2, render=False, food_ammount=3,
                  view_len=4, time_out=3000):
+        """
+        This is init function, change runtime values in self._reset()
+        Parameters
+        ----------
+        width
+        height
+        render
+        food_ammount
+        view_len
+        time_out
+        """
         if render:
             pygame.init()
             width = int(width)
@@ -74,7 +85,6 @@ class Game:
         if border:  # Screen edge is border
             # Checking X values in proper range
             if self.x >= self.width:
-
                 self.x = self.width - self.rect_size
                 hit = True
             elif self.x < 0:
@@ -108,11 +118,9 @@ class Game:
         return False
 
     def check_collision_with_observationtacles(self, x, y):
-        for pos in self.tail[1:-1]:
+        for pos in self.tail[1:-2]:
             if [x, y] == pos:
-                # self.speed_multiplier = 0
                 return True
-        pass
 
     def check_collision_with_snake(self, x, y):
         for pos in self.tail:
@@ -170,7 +178,7 @@ class Game:
                 or len(self.food) < 1:
             self.place_food()
 
-    def move_snake(self, new_direction, reverse=False):
+    def move_snake(self, new_direction, reverse=False, force_move=False):
         """
         Directions
           0       Up
@@ -181,7 +189,8 @@ class Game:
         current_speed = self.speed_multiplier * self.rect_size
         # Turn only left or right
         if not ((self.direction in [0, 2] and new_direction in [0, 2])
-                or (self.direction in [1, 3] and new_direction in [1, 3])):
+                or (self.direction in [1, 3] and new_direction in [1, 3])) \
+                or force_move:
             self.direction = new_direction
 
         if reverse:
@@ -294,7 +303,7 @@ class Game:
         tuple:
             bool: done
             int: reward
-            tuple: observation
+            tuple: new_state
                 2DList: ViewArea
                 Tuple:
                     float: relative food x position
@@ -319,14 +328,14 @@ class Game:
         hit2 = self.check_collision_with_observationtacles(self.x, self.y)
         if hit1 or hit2:  # <<---- Collision, Disable loop
             f_run = False
-            # if hit2:
-            #     self.move_snake(reverse=True)
+            if hit2:
+                self.move_snake((new_direction+2) % 4, force_move=True)
             self.speed_multiplier = 0
             _color = (255, 0, 0)
         else:
             _color = (130, 255, 255)
-
         self.update_tail()
+
         reward = self.eat_food() * 10  # Eaten food is worth 5
         if not FREE_MOVE:
             reward -= 1
@@ -359,8 +368,8 @@ class Agent:
                  learining_rate=0.001):
 
         dt = datetime.datetime.timetuple(datetime.datetime.now())
-        self.runtime_name = f"{MODEL_NAME}--{dt.tm_mon:>02}-{dt.tm_mday:>02}-" \
-                            f"-{dt.tm_hour:>02}--{dt.tm_min:>02}-{dt.tm_sec:>02}"
+        self.runtime_name = f"{dt.tm_mon:>02}-{dt.tm_mday:>02}--" \
+                            f"{dt.tm_hour:>02}-{dt.tm_min:>02}-{dt.tm_sec:>02}"
 
         self.minibatch_size = minibatch_size
         self.pic_size = pic_size
@@ -384,11 +393,11 @@ class Agent:
     def create_model(self):
         input_1 = Input(shape=self.pic_size)
 
-        layer_1 = Conv2D(32, (5, 5), padding='same', activation='relu')(input_1)
-        layer_1 = MaxPooling2D()(layer_1)
+        # layer_1 = Conv2D(32, (5, 5), padding='same', activation='relu')(input_1)
+        # layer_1 = MaxPooling2D()(layer_1)
         # layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
         # layer_1 = MaxPooling2D()(layer_1)
-        layer_1 = Flatten()(layer_1)
+        layer_1 = Flatten()(input_1)
         layer_1 = Dense(32, activation='relu')(layer_1)
 
         input_2 = Input(shape=self.direction_with_food_array)
@@ -398,7 +407,7 @@ class Agent:
 
         # layer_3 = Dense(32, activation='relu')(merged_vector)
         layer_4 = Dropout(0.2)(merged_vector)
-        layer_5 = Dense(16, activation='relu')(layer_4)
+        layer_5 = Dense(32, activation='relu')(layer_4)
         output_layer = Dense(self.action_space, activation='linear')(layer_5)
 
         model = Model(inputs=[input_1, input_2], outputs=output_layer)
@@ -467,54 +476,6 @@ class Agent:
                        verbose=0, shuffle=False, epochs=1)
 
 
-def get_discrete_vals(q_table, observation):
-    """
-
-    Parameters
-    ----------
-    q_table
-    observation
-
-    Returns
-    -------
-    list: q-values
-    """
-    index = discrete_state_index(observation)
-    q_values = q_table[tuple(index)]
-    return q_values
-
-
-def discrete_state_index(observation):
-    """
-
-    Parameters
-    ----------
-    q_table
-    observation
-
-    Returns
-    -------
-    tuple: index slice to q-vals list
-        int: direction
-        int: food x relative <0, 2>
-        int: food y relative <0, 2>
-        int: view area index <0, field_vals**fields>
-    """
-    direction, food_relative, view_area = observation
-    discrete_index = 0
-
-    f_x = int(0 if not food_relative[0] else 1 * np.sign(food_relative[0])) + 1  # Select food relative x
-    f_y = int(0 if not food_relative[1] else 1 * np.sign(food_relative[1])) + 1  # Select food relative y
-    for i, field in enumerate(view_area.ravel()):
-        if not field:  # Ignore 0=Path
-            continue
-
-        add = (FIELD_STATES ** i) * field
-        discrete_index += add
-
-    return direction, f_x, f_y, discrete_index
-
-
 if __name__ == "__main__":
     config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = False
@@ -545,6 +506,7 @@ if __name__ == "__main__":
     EPS_INTERVAL = settings.EPS_INTERVAL
 
     SHOW_EVERY = settings.SHOW_EVERY
+    RENDER_DELAY = settings.RENDER_DELAY
 
     SHOW_LAST = settings.SHOW_LAST
     PLOT_ALL_QS = settings.PLOT_ALL_QS
@@ -639,13 +601,12 @@ if __name__ == "__main__":
                 if PLOT_ALL_QS:
                     Predicts[0].append(action)
                     Predicts[1].append(prediction[action])
-
             done, reward, state = game.step(action=action)
             agent.update_memory((old_state, state, reward, action, done))
 
             if render:
                 game.draw()
-                time.sleep(0.008)
+                time.sleep(RENDER_DELAY)
             score += reward
 
         stats['episode'].append(episode+episode_offset)
@@ -680,7 +641,6 @@ if __name__ == "__main__":
     plt.plot(stats['episode'], effectiveness, label='Effectiveness')
     plt.xlabel("Epoch")
     plt.legend(loc='best')
-
 
     if SAVE_PICS:
         plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
