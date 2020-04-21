@@ -321,10 +321,10 @@ class Game:
             _color = (130, 255, 255)
 
         self.update_tail()
-        reward = self.eat_food() * 50 - 1  # Eaten food is worth 5
+        reward = self.eat_food() * 5 - 1  # Eaten food is worth 5
         state = self.observation()
 
-        if not f_run:  # Devalue reward
+        if not f_run:  # Dead
             self.done = True
             reward = -10
 
@@ -412,13 +412,14 @@ class Agent:
         new_view = []
         new_info = []
         rewards = []
-        
-        for old_state, new_state, reward, action in train_data:
+        done_list = []
+        for old_state, new_state, reward, action, done in train_data:
             old_view.append(old_state[0])
             old_info.append(old_state[1])
             new_view.append(new_state[0])
             new_info.append(new_state[1])
             rewards.append(reward)
+            done_list.append(done)
 
         input1 = np.array(old_view).reshape(-1, VIEW_AREA, VIEW_AREA, 1)
         input2 = np.array(old_info)
@@ -428,10 +429,13 @@ class Agent:
         old_qs = self.model.predict([input1, input2])
         new_qs = self.model.predict([input3, input4])
 
-        for old_q, new_q, rew in zip(old_qs, new_qs, rewards):
+        for old_q, new_q, rew, done in zip(old_qs, new_qs, rewards, done_list):
             act = np.argmax(new_q)
             future_val = new_q[act]
-            old_q[act] = rew + DISCOUNT * future_val
+            if done:
+                old_q[act] = rew
+            else:
+                old_q[act] = rew + DISCOUNT * future_val
 
         self.model.fit([input1, input2], old_qs,
                        verbose=0, shuffle=False, epochs=1)
@@ -596,7 +600,7 @@ if __name__ == "__main__":
                     Predicts[1].append(prediction[action])
 
             done, reward, state = game.step(action=action)
-            agent.update_memory((old_state, state, reward, action))
+            agent.update_memory((old_state, state, reward, action, done))
 
             if render:
                 game.draw()
@@ -622,8 +626,7 @@ if __name__ == "__main__":
     plt.legend(loc='best')
 
     plt.subplot(212)
-    plt.plot(np.array(stats['episode'])+episode_offset,
-             stats['eps'], label='Epsilon')
+    plt.plot(np.array(stats['episode'])+episode_offset, stats['eps'], label='Epsilon')
     plt.xlabel("Epoch")
     plt.legend(loc='best')
 
@@ -634,6 +637,7 @@ if __name__ == "__main__":
         color = 'g' if action == 0 else 'm' if action == 1 else 'b'
         samples.append(q_val)
         colors.append(color)
+
     plt.scatter(range(len(samples)), samples, c=colors, alpha=0.3, s=10, marker='.')
     plt.title("Movement evolution in time:\n"
               "Left Green, Red None, Blue Right")
