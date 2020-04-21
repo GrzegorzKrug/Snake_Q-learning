@@ -8,10 +8,11 @@ import keras
 import time
 import os
 
-from matplotlib import style
-from keras.models import Model
 from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input
 from keras.optimizers import Adam
+from keras.models import Model
+from matplotlib import style
+from collections import deque
 
 
 class Game:
@@ -200,31 +201,6 @@ class Game:
             else:
                 self.x -= current_speed
 
-    def observation_area(self):
-        depth = self.view_len * 2 + 1  # in to direction + 1(center)
-        view_area = np.zeros((depth, depth), dtype=int)
-        for iy in range(depth):
-            for ix in range(depth):
-                x = int(self.x + (ix - self.view_len) * self.rect_size)
-                y = int(self.y + (iy - self.view_len) * self.rect_size)  # Y is drawn from top to bot
-
-                if x > self.width or x < 0 or \
-                        y >= self.height or y < 0:
-                    view_area[iy, ix] = 2
-                    continue
-
-                for f in self.food:
-                    if [x, y] == f:
-                        view_area[iy, ix] = 1
-                        break
-
-                for tail in self.tail:
-                    if [x, y] == tail:
-                        view_area[iy, ix] = 2
-                        break
-
-        return self.direction, view_area
-
     def observation(self):
         """
 
@@ -236,13 +212,14 @@ class Game:
             positive x - move right
             positive y - move top
         list:
-            view-area, shape(3,3), elements: 0-path, 1-collision
+            view-area, shape(2*viewlen + 1), elements: 0-path, 1-collision
         """
-        view_area = np.zeros((3, 3), dtype=int)
-        for iy in range(3):
-            for ix in range(3):
-                x = int(self.x + (ix - 1) * self.rect_size)
-                y = int(self.y + (iy - 1) * self.rect_size)
+        a = self.view_len * 2 + 1
+        view_area = np.zeros((a, a), dtype=int)
+        for iy in range(a):
+            for ix in range(a):
+                x = int(self.x + (ix - self.view_len) * self.rect_size)
+                y = int(self.y + (iy - self.view_len) * self.rect_size)
 
                 if x > self.width or x < 0 or \
                         y >= self.height or y < 0:
@@ -257,12 +234,16 @@ class Game:
         if len(self.food) > 0:
             food = self.food[0]
         else:
-            food = [2, 2]
+            food = [0, 0]
             print(f"No Food info")
-            return self.direction, food, view_area
 
-        out = [food[0] - self.x, self.y - food[1]]
-        return self.direction, out, view_area
+        food_info = [
+                (food[0] - self.x)/self.width,
+                (self.y - food[1])/self.height]
+
+        out = food_info + [self.direction]
+        state = (view_area, out)
+        return state
 
     def place_food(self):
         while True:
@@ -304,14 +285,14 @@ class Game:
         Returns
         -------
         tuple:
-            bool: continue_game
+            bool: done
             int: reward
             tuple: observation
-                int: direction
-                list of ints: shape=(2), food position relative,
-                list of ints: shape=(3,3), view_area
-                    value 0 is path,
-                    value 1 is wall / tail
+                2DList: ViewArea
+                Tuple:
+                    float: relative food x position
+                    float: relative food y position
+                    int: direction
         """
         new_direction = (self.direction + (action - 1)) % 4
         if self.done:
@@ -340,18 +321,18 @@ class Game:
 
         self.update_tail()
         reward = self.eat_food() * 50 - 1  # Eaten food is worth 5
-        observation = self.observation()
+        state = self.observation()
 
         if not f_run:  # Devalue reward
             self.done = True
-            reward = -100
+            reward = -10
 
         if self.current_time >= self.time_out:
             f_run = False
             print(f"Timeout! score: {self.score}")
             self.done = True
 
-        return f_run, reward, observation
+        return self.done, reward, state
 
     def update_tail(self):
         if self.tail[-1] != [self.x, self.y]:
@@ -364,7 +345,7 @@ class Game:
 
 class Agent:
     def __init__(self,
-                 model_name, minibatch_size, pic_size, direction_array_size,
+                 model_name, minibatch_size, pic_size, direction_with_food_array,
                  action_space,
                  learining_rate=0.001):
 
@@ -375,38 +356,40 @@ class Agent:
 
         self.minibatch_size = minibatch_size
         self.pic_size = pic_size
-        self.direction_array_size = direction_array_size
+        self.direction_with_food_array = direction_with_food_array
         self.action_space = action_space
         self.learning_rate = learining_rate
         self.model = self.create_model()
+        self.memory = deque(maxlen=REPLAY_MEMORY_SIZE)
 
-    def create_model(self, a=None):
-        model = Model()
-
+    def create_model(self):
         input_1 = Input(shape=self.pic_size)
 
-        layer_1 = Conv2D(64, (3, 3), padding='same', activation='relu')(input_1)
+        layer_1 = Conv2D(32, (3, 3), padding='same', activation='relu')(input_1)
         layer_1 = MaxPooling2D()(layer_1)
 
-        layer_1 = Conv2D(64, (3, 3), padding='same', activation='relu')(layer_1)
+        layer_1 = Conv2D(32, (3, 3), padding='same', activation='relu')(layer_1)
         layer_1 = MaxPooling2D()(layer_1)
         layer_1 = Flatten()(layer_1)
 
-        input_2 = Input(shape=self.direction_array_size)
+        input_2 = Input(shape=self.direction_with_food_array)
 
         merged_vector = keras.layers.concatenate([layer_1, input_2], axis=-1)
 
-        layer_3 = Dense(64, activation='relu')(merged_vector)
+        layer_3 = Dense(32, activation='relu')(merged_vector)
         layer_4 = Dropout(0.2)(layer_3)
-        layer_5 = Dense(64, activation='relu')(layer_4)
+        layer_5 = Dense(32, activation='relu')(layer_4)
         output_layer = Dense(self.action_space, activation='linear')(layer_5)
 
         model = Model(inputs=[input_1, input_2], outputs=output_layer)
         model.compile(optimizer=Adam(lr=self.learning_rate),
                       loss='mse',
                       metrics=['accuracy'])
-        model.summary()
-        return a
+        # model.summary()
+        return model
+
+    def update_memory(self, state):
+        self.memory.append(state)
 
     def save_model(self):
         self.model.save_weights(f"{self.model_name}/model", overwrite=True)
@@ -493,7 +476,7 @@ if __name__ == "__main__":
     RAMP_EPS = settings.RAMP_EPS
     INITIAL_SMALL_EPS = settings.INITIAL_SMALL_EPS
     END_EPS = settings.END_EPS
-    EPS_END_AT = settings.EPS_END_AT
+    EPS_INTERVAL = settings.EPS_INTERVAL
 
     SHOW_EVERY = settings.SHOW_EVERY
     TRAIN_EVERY = settings.TRAIN_EVERY
@@ -508,8 +491,10 @@ if __name__ == "__main__":
     "Environment"
     ACTIONS = 3  # Turn left, right or none
     FIELD_STATES = 2
-    VIEW_LEN = 8
-    VIEW_AREA = VIEW_LEN * 2 + 1
+    VIEW_AREA = settings.VIEW_AREA
+    VIEW_LEN = settings.VIEW_LEN
+
+    Predicts = [[], []]
 
     stats = {
         "episode": [],
@@ -517,69 +502,91 @@ if __name__ == "__main__":
         "score": [],
         "food_eaten": []
     }
-    episode_offset = 0
 
     agent = Agent("test", minibatch_size=MINIBATCH_SIZE,
                   pic_size=(VIEW_AREA, VIEW_AREA, 1,),
-                  direction_array_size=(2,),
+                  direction_with_food_array=(3,),
                   action_space=3)
-    #
-    for episode in range(0 + episode_offset, EPOCHS + episode_offset):
-        pass
-    #     if not episode % SHOW_EVERY or episode >= EPISODES + episode_offset - 1:
-    #         render = True
-    #     else:
-    #         render = False
-    #
-    #     game = None
-    #     game = Game(food_ammount=1, render=render, view_len=10)
-    #     valid = True
-    #     observation = Game().reset()
-    #     score = 0
-    #
-    #
-    #     eps
-    #
-    #     while valid:
-    #         old_observation = observation
-    #
-    #         if eps > np.random.random():
-    #             action = np.random.randint(0, ACTIONS)
-    #         else:
-    #             predict
-    #
-    #
-    #
-    #         valid, reward, observation = game.step(action=action)
-    #
-    #         train
-    #
-    #         if render:
-    #             game.draw()
-    #             time.sleep(0.03)
-    #         score += reward
-    #
-    #     stats['episode'].append(episode)
-    #     stats['eps'].append(eps)
-    #     stats['score'].append(score)
-    #     stats['food_eaten'].append(game.score)
-    #
-    #     if game.score > 10:
-    #         print(f"Ep[{episode:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
-    #
-    # # Saving outputs
-    # os.makedirs('graphs', exist_ok=True)
-    #
-    # np.save('last_qtable.npy', q_table)
-    # np.save('last_stats.npy', stats)
-    #
-    # pygame.quit()
-    #
-    # style.use('ggplot')
-    # plt.scatter(
-    #         stats['episode'][episode_offset:],
-    #         stats['food_eaten'][episode_offset:],
-    #         alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
-    # )
-    # plt.legend(loc=3)
-    # plt.show()
+
+    try:
+        episode_offset = np.load(f"{MODEL_NAME}/last-episode-num.npy", allow_pickle=True)
+    except FileNotFoundError:
+        episode_offset = 0
+
+    eps_iter = iter(np.linspace(RAMP_EPS, END_EPS, EPS_INTERVAL))
+
+    for episode in range(0, EPOCHS):
+        if episode == EPOCHS - 1 or episode == 0:
+            eps = 0
+            render = True
+        elif episode < EPOCHS // 5:
+            eps = FIRST_EPS
+        elif episode < EPOCHS // 3:
+            eps = 0.3
+        else:
+            try:
+                eps = next(eps_iter)
+            except StopIteration:
+                eps_iter = iter(np.linspace(INITIAL_SMALL_EPS, END_EPS, EPS_INTERVAL))
+                eps = next(eps_iter)
+
+        if not episode % SHOW_EVERY:
+            render = True
+        else:
+            render = False
+
+        game = None  # Close screen
+        game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
+        state = game.reset()
+        area, more_info = state
+
+        done = False
+        score = 0
+        while not done:
+            old_state = state
+
+            if eps > np.random.random():
+                action = np.random.randint(0, ACTIONS)
+            else:
+                area, more_info = old_state
+                area = np.array(area).reshape((-1, VIEW_AREA, VIEW_AREA, 1))
+                more_info = np.array(more_info).reshape(-1, 3)
+
+                prediction = agent.model.predict([area, more_info])[0]
+                action = np.argmax(prediction)
+
+                if PLOT_ALL_QS:
+                    Predicts[0].append(action)
+                    Predicts[1].append(prediction[action])
+
+            done, reward, state = game.step(action=action)
+
+            if render:
+                game.draw()
+                time.sleep(0.03)
+            score += reward
+
+        stats['episode'].append(episode)
+        stats['eps'].append(eps)
+        stats['score'].append(score)
+        stats['food_eaten'].append(game.score)
+
+        print(f"Ep[{episode:^7}], food_eaten:{game.score:>4}, Eps: {eps:>1.3f}, reward:{score:>6}")
+
+    # Saving outputs
+    os.makedirs('graphs', exist_ok=True)
+
+
+    pygame.quit()
+
+    style.use('ggplot')
+    plt.scatter(
+            stats['episode'][episode_offset:],
+            stats['food_eaten'][episode_offset:],
+            alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
+    )
+    plt.legend(loc=3)
+    plt.show()
+
+np.save(f"{MODEL_NAME}/last-episode-num.npy", EPOCHS + episode_offset)
+
