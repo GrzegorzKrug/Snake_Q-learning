@@ -599,8 +599,6 @@ if __name__ == "__main__":
 
                 prediction = agent.model.predict([area, more_info])[0]
                 action = np.argmax(prediction)
-                if render:
-                    print(prediction)
                 if PLOT_ALL_QS:
                     Predicts[0].append(action)
                     Predicts[1].append(prediction[action])
@@ -619,7 +617,7 @@ if __name__ == "__main__":
         stats['food_eaten'].append(game.score)
 
         print(f"Ep[{episode+episode_offset:^7} of {EPOCHS+episode_offset}], food_eaten:{game.score:^3}, "
-              f"Eps: {eps:>1.3f}, reward: {score:<6}")
+              f"Eps: {eps:>1.3f}, reward: {score:<6.1f}")
 
     pygame.quit()
 
