@@ -337,8 +337,9 @@ class Game:
         self.update_tail()
 
         reward = self.eat_food() * 10  # Eaten food is worth 5
-        if not FREE_MOVE:
-            reward -= 1
+        if not reward and not FREE_MOVE:
+            reward = -1
+
         state = self.observation()
 
         if not f_run:  # Dead
@@ -670,13 +671,13 @@ if __name__ == "__main__":
     plt.legend(loc='best')
 
     plt.subplot(312)
-    plt.scatter(stats['episode'], stats['score'], label='Score', color='g', marker='.', s=5)
+    plt.scatter(stats['episode'], stats['score'], label='Score', color='b', marker='.', s=10, alpha=0.5)
     plt.xlabel("Epoch")
     plt.legend(loc='best')
 
     plt.subplot(313)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
-    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='.', s=5)
+    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='.', s=10, alpha=0.5)
     plt.xlabel("Epoch")
     plt.legend(loc='best')
 
@@ -691,10 +692,10 @@ if __name__ == "__main__":
         samples.append(q_val)
         colors.append(color)
 
-    plt.scatter(range(len(samples)), samples, c=colors, alpha=0.3, s=10, marker='.')
+    plt.scatter(range(len(samples)), samples, c=colors, alpha=0.2, s=10, marker='.')
     y_min, y_max = np.min(Predicts[1]), np.max(Predicts[1])
     for sep in Pred_sep:
-        last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=1, alpha=0.3)
+        last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=0.3, alpha=0.5)
     plt.title(f"Movement evolution in time, learning-rate:{AGENT_LR}\n"
               "Left Green, Red None, Blue Right")
     last_line.set_label("Epoch separator")
@@ -716,3 +717,4 @@ if __name__ == "__main__":
     if not SAVE_PICS:
         plt.show()
 
+    os.system("play -nq -t alsa synth 0.1 sine 950")
