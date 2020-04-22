@@ -71,8 +71,8 @@ class Game:
         self.score = 0
         self.direction = 1
         self.speed_multiplier = 1
-        self.x = (self.width / 2) // self.rect_size * self.rect_size
-        self.y = (self.height / 2) // self.rect_size * self.rect_size
+        self.x = (np.random.randint(-10, 10) + self.width // 2 // self.rect_size) * self.rect_size
+        self.y = (np.random.randint(-5, 5) + self.height // 2 // self.rect_size) * self.rect_size
         self.tail_len = 10
         self.tail = [[self.x, self.y]]
         self.food = []
@@ -458,9 +458,9 @@ class Agent:
             rewards.append(reward)
             done_list.append(done)
 
-        input1 = np.array(old_view).reshape((-1, VIEW_AREA, VIEW_AREA, 1))
+        input1 = np.array(old_view)
         input2 = np.array(old_info)
-        input3 = np.array(new_view).reshape((-1, VIEW_AREA, VIEW_AREA, 1))
+        input3 = np.array(new_view)
         input4 = np.array(new_info)
 
         old_qs = self.model.predict([input1, input2])
@@ -534,7 +534,7 @@ if __name__ == "__main__":
     }
 
     agent = Agent(minibatch_size=MINIBATCH_SIZE,
-                  pic_size=(VIEW_AREA, VIEW_AREA, 1,),
+                  pic_size=(VIEW_AREA, VIEW_AREA,),
                   direction_with_food_array=(3,),
                   action_space=3)
 
@@ -579,48 +579,77 @@ if __name__ == "__main__":
             render = True
             eps = 0
 
-        game = None  # Close screen
-        game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
-        state = game.reset()
-        area, more_info = state
-        done = False
-        score = 0
+        Games = []  # Close screen
+        States = []
+        for _ in range(SIM_COUNT):
+            game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
+            Games.append(game)
+            States.append(game.reset())
+        Dones = [False] * len(Games)
+        Scores = [0] * len(Games)
         step = 0
-        while not done:
+        All_score = []
+        while len(Games):
             if render and step > 700:
                 render = False
                 print("Render stopped.")
             step += 1
-            old_state = state
+            Old_states = np.array(States.copy())
 
             if eps > np.random.random():
-                action = np.random.randint(0, ACTIONS)
+                Actions = np.random.randint(0, ACTIONS, len(Games))
             else:
-                area, more_info = old_state
-                area = np.array(area).reshape((-1, VIEW_AREA, VIEW_AREA, 1))
-                more_info = np.array(more_info).reshape(-1, 3)
+                Areas = []
+                More_Infos = []
+                for area, more_info in Old_states:
+                    Areas.append(area)
+                    More_Infos.append(more_info)
 
-                prediction = agent.model.predict([area, more_info])[0]
-                action = np.argmax(prediction)
+                Areas = np.array(Areas)
+                More_Infos = np.array(More_Infos)
+
+                # Areas = np.array(Areas).reshape((-1, VIEW_AREA, VIEW_AREA, 1))
+                # more_info = np.array(more_info).reshape(-1, 3)
+
+                Predictions = agent.model.predict([Areas, More_Infos])
+
+                Actions = np.argmax(Predictions, axis=1)
                 if PLOT_ALL_QS:
-                    Predicts[0].append(action)
-                    Predicts[1].append(prediction[action])
-            done, reward, state = game.step(action=action)
-            agent.update_memory((old_state, state, reward, action, done))
+                    for action, predict in zip(Actions, Predictions):
+                        pass
+                        Predicts[0].append(action)
+                        Predicts[1].append(predict[action])
+            States = []
+            for g_index, game in enumerate(Games):
+                done, reward, state = game.step(action=Actions[g_index])
+                agent.update_memory((Old_states[g_index], state, reward, Actions[g_index], done))
+                Scores[g_index] += reward
+                Dones[g_index] = done
+                States.append(state)
 
             if render:
-                game.draw()
+                Games[0].draw()
                 time.sleep(RENDER_DELAY)
-            score += reward
 
-        stats['episode'].append(episode+episode_offset)
-        stats['eps'].append(eps)
-        stats['score'].append(score)
-        stats['food_eaten'].append(game.score)
-        stats['moves'].append(step)
+            for ind_d in range(len(Games) - 1, -1, -1):
+                if Dones[ind_d]:
+                    if ind_d == 0 and render:
+                        render = False
+                    All_score.append(Scores[ind_d])
 
-        print(f"Ep[{episode+episode_offset:^7} of {EPOCHS+episode_offset}], food_eaten:{game.score:^3}, "
-              f"Eps: {eps:>1.3f}, reward: {score:<6.1f}")
+                    stats['episode'].append(episode+episode_offset)
+                    stats['eps'].append(eps)
+                    stats['score'].append(Scores[ind_d])
+                    stats['food_eaten'].append(Games[ind_d].score)
+                    stats['moves'].append(step)
+
+                    Scores.pop(ind_d)
+                    Games.pop(ind_d)
+                    States.pop(ind_d)
+                    Dones.pop(ind_d)
+
+        print(f"Ep[{episode+episode_offset:^7} of {EPOCHS+episode_offset}], avg-score: {np.mean(All_score):^5.1f}, "
+              f"Eps: {eps:>1.3f}")
 
     time_end = time.time()
     pygame.quit()
@@ -660,7 +689,7 @@ if __name__ == "__main__":
     plt.scatter(range(len(samples)), samples, c=colors, alpha=0.3, s=10, marker='.')
     y_min, y_max = np.min(Predicts[1]), np.max(Predicts[1])
     for sep in Pred_sep:
-        last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=0.4)
+        last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=1, alpha=0.3)
     plt.title(f"Movement evolution in time, learning-rate:{AGENT_LR}\n"
               "Left Green, Red None, Blue Right")
     last_line.set_label("Epoch separator")
