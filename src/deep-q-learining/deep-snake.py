@@ -246,7 +246,7 @@ class Game:
                     if [x, y] == food:
                         view_area[iy, ix] = 2
                         break
-
+        view_area = view_area / 2
         if len(self.food) > 0:
             food = self.food[0]
         else:
@@ -400,16 +400,16 @@ class Agent:
         # layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
         # layer_1 = MaxPooling2D()(layer_1)
         layer_1 = Flatten()(input_1)
-        layer_1 = Dense(32, activation='relu')(layer_1)
+        layer_1 = Dense(16, activation='relu')(layer_1)
 
         input_2 = Input(shape=self.direction_with_food_array)
-        layer_2_1 = Dense(16, activation='relu')(input_2)
+        layer_2_1 = Dense(8, activation='relu')(input_2)
 
         merged_vector = keras.layers.concatenate([layer_1, layer_2_1], axis=-1)
 
         # layer_3 = Dense(32, activation='relu')(merged_vector)
         layer_4 = Dropout(0.2)(merged_vector)
-        layer_5 = Dense(32, activation='relu')(layer_4)
+        layer_5 = Dense(16, activation='relu')(layer_4)
         output_layer = Dense(self.action_space, activation='linear')(layer_5)
 
         model = Model(inputs=[input_1, input_2], outputs=output_layer)
@@ -589,6 +589,7 @@ if __name__ == "__main__":
         Scores = [0] * len(Games)
         step = 0
         All_score = []
+        All_steps = []
         while len(Games):
             if render and step > 700:
                 render = False
@@ -636,6 +637,7 @@ if __name__ == "__main__":
                     if ind_d == 0 and render:
                         render = False
                     All_score.append(Scores[ind_d])
+                    All_steps.append(step)
 
                     stats['episode'].append(episode+episode_offset)
                     stats['eps'].append(eps)
@@ -648,8 +650,11 @@ if __name__ == "__main__":
                     States.pop(ind_d)
                     Dones.pop(ind_d)
 
-        print(f"Ep[{episode+episode_offset:^7} of {EPOCHS+episode_offset}], avg-score: {np.mean(All_score):^5.1f}, "
-              f"Eps: {eps:>1.3f}")
+        print(f"Ep[{episode+episode_offset:^7} of {EPOCHS+episode_offset}], "
+              f"Eps: {eps:>1.3f} "
+              f"avg-score: {np.mean(All_score):^8.1f}, "
+              f"avg-steps: {np.mean(All_steps):^7.1f}"
+              )
 
     time_end = time.time()
     pygame.quit()
@@ -665,13 +670,13 @@ if __name__ == "__main__":
     plt.legend(loc='best')
 
     plt.subplot(312)
-    plt.plot(stats['episode'], stats['score'], label='Score')
+    plt.scatter(stats['episode'], stats['score'], label='Score', color='g', marker='.', s=5)
     plt.xlabel("Epoch")
     plt.legend(loc='best')
 
     plt.subplot(313)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
-    plt.plot(stats['episode'], effectiveness, label='Effectiveness')
+    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='.', s=5)
     plt.xlabel("Epoch")
     plt.legend(loc='best')
 
