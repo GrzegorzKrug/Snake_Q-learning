@@ -387,8 +387,10 @@ class Agent:
         else:
             self.model = self.create_model()
 
-        # with open(f"{MODEL_NAME}/model_summary.txt", 'w') as file:
-        #     self.model.summary(print_fn=lambda x: file.write(x + '\n'))
+        self.model.compile(optimizer=Adam(lr=self.learning_rate),
+                      loss='mse',
+                      metrics=['accuracy'])
+        self.model.summary()
 
     def create_model(self):
         input_1 = Input(shape=self.pic_size)
@@ -521,6 +523,7 @@ if __name__ == "__main__":
     VIEW_LEN = settings.VIEW_LEN
 
     Predicts = [[], []]
+    Pred_sep = []
 
     stats = {
             "episode": [],
@@ -543,6 +546,7 @@ if __name__ == "__main__":
     eps_iter = iter(np.linspace(RAMP_EPS, END_EPS, EPS_INTERVAL))
     time_start = time.time()
     for episode in range(0, EPOCHS):
+        Pred_sep.append(len(Predicts[0]))
         if ALLOW_TRAIN:
             agent.train()
             if not episode % 1000:
@@ -654,10 +658,16 @@ if __name__ == "__main__":
         colors.append(color)
 
     plt.scatter(range(len(samples)), samples, c=colors, alpha=0.3, s=10, marker='.')
-    plt.title("Movement evolution in time:\n"
+    y_min, y_max = np.min(Predicts[1]), np.max(Predicts[1])
+    for sep in Pred_sep:
+        last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=0.4)
+    plt.title(f"Movement evolution in time, learning-rate:{AGENT_LR}\n"
               "Left Green, Red None, Blue Right")
+    last_line.set_label("Epoch separator")
     plt.xlabel("Sample")
     plt.ylabel("Q-value")
+    plt.legend(loc='best')
+
     if SAVE_PICS:
         plt.savefig(f"{MODEL_NAME}/Qs-{agent.runtime_name}.png")
 
