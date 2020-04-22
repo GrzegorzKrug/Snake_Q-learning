@@ -401,7 +401,7 @@ class Agent:
         # layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
         # layer_1 = MaxPooling2D()(layer_1)
         layer_1 = Flatten()(input_1)
-        layer_1 = Dense(16, activation='relu')(layer_1)
+        layer_1 = Dense(8, activation='relu')(layer_1)
 
         input_2 = Input(shape=self.direction_with_food_array)
         layer_2_1 = Dense(8, activation='relu')(input_2)
@@ -409,8 +409,9 @@ class Agent:
         merged_vector = keras.layers.concatenate([layer_1, layer_2_1], axis=-1)
 
         # layer_3 = Dense(32, activation='relu')(merged_vector)
-        layer_4 = Dropout(0.2)(merged_vector)
-        layer_5 = Dense(16, activation='relu')(layer_4)
+        layer_4 = Dense(32, activation='relu')(merged_vector)
+        layer_4 = Dropout(0.2)(layer_4)
+        layer_5 = Dense(32, activation='relu')(layer_4)
         output_layer = Dense(self.action_space, activation='linear')(layer_5)
 
         model = Model(inputs=[input_1, input_2], outputs=output_layer)
@@ -582,8 +583,11 @@ if __name__ == "__main__":
 
         Games = []  # Close screen
         States = []
-        for _ in range(SIM_COUNT):
-            game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
+        for lopp_ind in range(SIM_COUNT):
+            if lopp_ind == 0:
+                game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
+            else:
+                game = Game(food_ammount=1, render=False, view_len=VIEW_LEN)
             Games.append(game)
             States.append(game.reset())
         Dones = [False] * len(Games)
@@ -637,6 +641,8 @@ if __name__ == "__main__":
                 if Dones[ind_d]:
                     if ind_d == 0 and render:
                         render = False
+                        pygame.quit()
+
                     All_score.append(Scores[ind_d])
                     All_steps.append(step)
 
@@ -656,30 +662,33 @@ if __name__ == "__main__":
               f"avg-score: {np.mean(All_score):^8.1f}, "
               f"avg-steps: {np.mean(All_steps):^7.1f}"
               )
-
+    print("Plotting data now...")
     time_end = time.time()
     pygame.quit()
     style.use('ggplot')
     plt.figure(figsize=(20, 11))
-    plt.subplot(311)
+    plt.subplot(411)
     plt.title("Food eaten")
     plt.scatter(
             np.array(stats['episode']),
             stats['food_eaten'],
             alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
     )
-    plt.legend(loc='best')
+    plt.legend(loc=2)
 
-    plt.subplot(312)
-    plt.scatter(stats['episode'], stats['score'], label='Score', color='b', marker='.', s=10, alpha=0.5)
-    plt.xlabel("Epoch")
-    plt.legend(loc='best')
+    plt.subplot(412)
+    plt.scatter(stats['episode'], stats['moves'], label='Moves', color='b', marker='.', s=10, alpha=0.5)
+    plt.legend(loc=2)
 
-    plt.subplot(313)
+    plt.subplot(413)
+    plt.scatter(stats['episode'], stats['eps'], label='Epsilon', color='k', marker='.', s=10, alpha=1)
+    plt.legend(loc=2)
+
+    plt.subplot(414)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
     plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='.', s=10, alpha=0.5)
     plt.xlabel("Epoch")
-    plt.legend(loc='best')
+    plt.legend(loc=2)
 
     if SAVE_PICS:
         plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
@@ -717,4 +726,4 @@ if __name__ == "__main__":
     if not SAVE_PICS:
         plt.show()
 
-    os.system("play -nq -t alsa synth 0.1 sine 950")
+    os.system("play -nq -t alsa synth 2 sine 1250")
