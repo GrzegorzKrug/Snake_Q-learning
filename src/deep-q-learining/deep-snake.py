@@ -23,7 +23,7 @@ class Game:
     _count = 0
 
     def __init__(self, width=1.4e3, height=8e2, render=False, food_ammount=3,
-                 view_len=4, time_out=1000):
+                 view_len=4, time_out=100):
         """
         This is init function, change runtime values in self._reset()
         Parameters
@@ -40,9 +40,6 @@ class Game:
             width = int(width)
             height = int(height)
             self.screen = pygame.display.set_mode((width, height))
-        self.MOVE_PENALTY = settings.MOVE_PENALTY
-        self.FOOD_REWARD = settings.FOOD_REWARD
-        self.DEAD_PENALTY = settings.DEAD_PENALTY
 
         self.render = render
         self.food_on_screen = food_ammount
@@ -340,20 +337,20 @@ class Game:
 
         self.food_refill(True, self.food_on_screen)
         if consumed > 0:
-            reward = self.score
+            reward = settings.FOOD_REWARD * consumed
+            self.current_time = 0
         else:
-            reward = self.MOVE_PENALTY
+            reward = settings.MOVE_PENALTY
 
         state = self.observation()
 
         if self.current_time >= self.time_out:
-            print(f"Timeout! score: {self.score}")
             self.done = True
-            reward = self.MOVE_PENALTY - 1
+            reward = settings.MOVE_PENALTY * 2
 
         if not f_run:  # Dead
             self.done = True
-            reward = self.DEAD_PENALTY
+            reward = settings.DEAD_PENALTY
 
         return self.done, reward, state
 
