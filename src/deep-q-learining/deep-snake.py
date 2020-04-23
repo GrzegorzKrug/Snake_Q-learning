@@ -211,6 +211,54 @@ class Game:
             else:
                 self.x -= current_speed
 
+    def observation_array(self):
+        """
+
+        :return:
+        int:
+            direction in range<0, 3>
+        list:
+            food-head relative position shape=(2)
+            positive x - move right
+            positive y - move top
+        list:
+            view-area, shape(2*viewlen + 1), elements: 0-path, 1-collision
+        """
+        a = self.view_len * 2 + 1
+        view_area = np.zeros((a, a), dtype=int)
+        for iy in range(a):
+            for ix in range(a):
+                x = int(self.x + (ix - self.view_len) * self.rect_size)
+                y = int(self.y + (iy - self.view_len) * self.rect_size)
+
+                if x >= self.width or x < 0 or \
+                        y >= self.height or y < 0:
+                    view_area[iy, ix] = 2
+                    continue
+
+                for tail in self.tail:
+                    if [x, y] == tail:
+                        view_area[iy, ix] = 2
+                        break
+
+                for food in self.food:
+                    if [x, y] == food:
+                        view_area[iy, ix] = 1
+                        break
+        view_area = view_area / 2
+        if len(self.food) > 0:
+            food = self.food[0]
+        else:
+            food = [0, 0]
+            print(f"No Food info")
+
+        food_info = [
+                (food[0] - self.x)/self.width,
+                (self.y - food[1])/self.height]
+
+        out = np.concatenate([view_area, food_info, [self.direction])
+        return out
+
     def observation(self):
         """
 
@@ -337,7 +385,10 @@ class Game:
 
         self.food_refill(True, self.food_on_screen)
         if consumed > 0:
-            reward = settings.FOOD_REWARD * consumed
+            if settings.FOOD_REWARD_RISING:
+                reward = settings.FOOD_REWARD * self.score
+            else:
+                reward = settings.FOOD_REWARD
             self.current_time = 0
         else:
             reward = settings.MOVE_PENALTY
@@ -346,7 +397,7 @@ class Game:
 
         if self.current_time >= self.time_out:
             self.done = True
-            reward = settings.MOVE_PENALTY * 2
+            reward = settings.DEAD_PENALTY / 10
 
         if not f_run:  # Dead
             self.done = True
@@ -402,16 +453,16 @@ class Agent:
         # layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
         # layer_1 = MaxPooling2D()(layer_1)
         layer_1 = Flatten()(input_1)
-        layer_1 = Dense(64, activation='linear')(layer_1)
+        layer_1 = Dense(32, activation='relu')(layer_1)
 
         input_2 = Input(shape=self.direction_with_food_array)
-        layer_2_2 = Dense(32, activation='linear')(input_2)
+        layer_2_2 = Dense(16, activation='relu')(input_2)
 
         merged_vector = keras.layers.concatenate([layer_1, layer_2_2], axis=-1)
         # layer_3 = Dense(32, activation='relu')(merged_vector)
         # layer_4 = Dense(32, activation='relu')(merged_vector)
-        layer_5 = Dropout(0.1)(merged_vector)
-        layer_6 = Dense(64, activation='tanh')(layer_5)
+        layer_5 = Dropout(0.2)(merged_vector)
+        layer_6 = Dense(128, activation='relu')(layer_5)
         output_layer = Dense(self.action_space, activation='linear')(layer_6)
 
         model = Model(inputs=[input_1, input_2], outputs=output_layer)
@@ -621,10 +672,11 @@ if __name__ == "__main__":
 
                 Predictions = agent.model.predict([Areas, More_Infos])
                 Actions = np.argmax(Predictions, axis=1)
-
-                if PLOT_ALL_QS:
+                if settings.PLOT_FIRST_QS:
+                    Predicts[0].append(Actions[0])
+                    Predicts[1].append(Predictions[0][Actions[0]])
+                elif PLOT_ALL_QS:
                     for action, predict in zip(Actions, Predictions):
-                        pass
                         Predicts[0].append(action)
                         Predicts[1].append(predict[action])
             States = []
@@ -670,8 +722,8 @@ if __name__ == "__main__":
     pygame.quit()
     style.use('ggplot')
     plt.figure(figsize=(20, 11))
-    plt.subplot(411)
-    plt.title("Food eaten")
+    plt.subplot(412)
+    plt.suptitle(f"{MODEL_NAME}\nStats")
     plt.scatter(
             np.array(stats['episode']),
             stats['food_eaten'],
@@ -679,15 +731,15 @@ if __name__ == "__main__":
     )
     plt.legend(loc=2)
 
-    plt.subplot(412)
+    plt.subplot(413)
     plt.scatter(stats['episode'], stats['moves'], label='Moves', color='b', marker='.', s=10, alpha=0.5)
     plt.legend(loc=2)
 
-    plt.subplot(413)
+    plt.subplot(414)
     plt.scatter(stats['episode'], stats['eps'], label='Epsilon', color='k', marker='.', s=10, alpha=1)
     plt.legend(loc=2)
 
-    plt.subplot(414)
+    plt.subplot(411)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
     plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='.', s=10, alpha=0.5)
     plt.xlabel("Epoch")
@@ -707,8 +759,8 @@ if __name__ == "__main__":
     plt.scatter(range(len(samples)), samples, c=colors, alpha=0.2, s=10, marker='.')
     y_min, y_max = np.min(Predicts[1]), np.max(Predicts[1])
     for sep in Pred_sep:
-        last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=0.3, alpha=0.5)
-    plt.title(f"Movement evolution in time, learning-rate:{AGENT_LR}\n"
+        last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=0.3, alpha=0.1)
+    plt.title(f"{MODEL_NAME}\nMovement evolution in time, learning-rate:{AGENT_LR}\n"
               "Left Green, Red None, Blue Right")
     last_line.set_label("Epoch separator")
     plt.xlabel("Sample")
