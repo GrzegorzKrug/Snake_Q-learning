@@ -6,6 +6,7 @@ import datetime
 import pygame
 import random
 import keras
+
 import time
 import os
 
@@ -13,15 +14,16 @@ from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input
 from keras.models import Model, load_model
 from keras.utils import plot_model
 from keras.optimizers import Adam
-from matplotlib import style
 from collections import deque
+from matplotlib import style
+from copy import copy, deepcopy
 
 
 class Game:
     _count = 0
 
     def __init__(self, width=1.4e3, height=8e2, render=False, food_ammount=3,
-                 view_len=4, time_out=3000):
+                 view_len=4, time_out=1000):
         """
         This is init function, change runtime values in self._reset()
         Parameters
@@ -38,6 +40,9 @@ class Game:
             width = int(width)
             height = int(height)
             self.screen = pygame.display.set_mode((width, height))
+        self.MOVE_PENALTY = settings.MOVE_PENALTY
+        self.FOOD_REWARD = settings.FOOD_REWARD
+        self.DEAD_PENALTY = settings.DEAD_PENALTY
 
         self.render = render
         self.food_on_screen = food_ammount
@@ -152,9 +157,6 @@ class Game:
         self.display_score()
         pygame.display.update()
 
-        # surf = pygame.display.get_surface()
-        # pygame.image.save(surf, f'image{index}.png')
-
     def eat_food(self):
         """
 
@@ -232,7 +234,7 @@ class Game:
                 x = int(self.x + (ix - self.view_len) * self.rect_size)
                 y = int(self.y + (iy - self.view_len) * self.rect_size)
 
-                if x > self.width or x < 0 or \
+                if x >= self.width or x < 0 or \
                         y >= self.height or y < 0:
                     view_area[iy, ix] = 1
                     continue
@@ -258,8 +260,7 @@ class Game:
                 (self.y - food[1])/self.height]
 
         out = food_info + [self.direction / 4]
-        state = (view_area, out)
-        return state
+        return view_area, out
 
     def place_food(self):
         while True:
@@ -315,7 +316,6 @@ class Game:
             print("Run has ended")
         f_run = True
         self.current_time += 1
-        self.food_refill(True, self.food_on_screen)
 
         if self.render:
             for event in pygame.event.get():
@@ -336,20 +336,24 @@ class Game:
             _color = (130, 255, 255)
         self.update_tail()
 
-        reward = self.eat_food() * 10  # Eaten food is worth 5
-        if not reward and not FREE_MOVE:
-            reward = -1
+        consumed = self.eat_food()  # Eaten food
+
+        self.food_refill(True, self.food_on_screen)
+        if consumed > 0:
+            reward = self.score
+        else:
+            reward = self.MOVE_PENALTY
 
         state = self.observation()
-
-        if not f_run:  # Dead
-            self.done = True
-            reward = -50
 
         if self.current_time >= self.time_out:
             print(f"Timeout! score: {self.score}")
             self.done = True
-            reward = -1
+            reward = self.MOVE_PENALTY - 1
+
+        if not f_run:  # Dead
+            self.done = True
+            reward = self.DEAD_PENALTY
 
         return self.done, reward, state
 
@@ -389,8 +393,8 @@ class Agent:
             self.model = self.create_model()
 
         self.model.compile(optimizer=Adam(lr=self.learning_rate),
-                      loss='mse',
-                      metrics=['accuracy'])
+                           loss='mse',
+                           metrics=['accuracy'])
         self.model.summary()
 
     def create_model(self):
@@ -401,23 +405,22 @@ class Agent:
         # layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
         # layer_1 = MaxPooling2D()(layer_1)
         layer_1 = Flatten()(input_1)
-        layer_1 = Dense(8, activation='relu')(layer_1)
+        layer_1 = Dense(64, activation='linear')(layer_1)
 
         input_2 = Input(shape=self.direction_with_food_array)
-        layer_2_1 = Dense(8, activation='relu')(input_2)
+        layer_2_2 = Dense(32, activation='linear')(input_2)
 
-        merged_vector = keras.layers.concatenate([layer_1, layer_2_1], axis=-1)
-
+        merged_vector = keras.layers.concatenate([layer_1, layer_2_2], axis=-1)
         # layer_3 = Dense(32, activation='relu')(merged_vector)
-        layer_4 = Dense(32, activation='relu')(merged_vector)
-        layer_4 = Dropout(0.2)(layer_4)
-        layer_5 = Dense(32, activation='relu')(layer_4)
-        output_layer = Dense(self.action_space, activation='linear')(layer_5)
+        # layer_4 = Dense(32, activation='relu')(merged_vector)
+        layer_5 = Dropout(0.1)(merged_vector)
+        layer_6 = Dense(64, activation='tanh')(layer_5)
+        output_layer = Dense(self.action_space, activation='linear')(layer_6)
 
         model = Model(inputs=[input_1, input_2], outputs=output_layer)
-        model.compile(optimizer=Adam(lr=self.learning_rate),
-                      loss='mse',
-                      metrics=['accuracy'])
+        # model.compile(optimizer=Adam(lr=self.learning_rate),
+        #               loss='mse',
+        #               metrics=['accuracy'])
 
         plot_model(model, f"{MODEL_NAME}/model.png")
         with open(f"{MODEL_NAME}/model_summary.txt", 'w') as file:
@@ -451,6 +454,7 @@ class Agent:
         rewards = []
         done_list = []
         actions = []
+
         for old_state, new_state, reward, action, done in train_data:
             old_view.append(old_state[0])
             old_info.append(old_state[1])
@@ -468,8 +472,7 @@ class Agent:
         old_qs = self.model.predict([input1, input2])
         new_qs = self.model.predict([input3, input4])
 
-        for old_q, new_q, rew, act, done in zip(old_qs, new_qs,
-                                                rewards, actions, done_list):
+        for old_q, new_q, rew, act, done in zip(old_qs, new_qs, rewards, actions, done_list):
             if done:
                 old_q[act] = rew
             else:
@@ -551,7 +554,7 @@ if __name__ == "__main__":
         Pred_sep.append(len(Predicts[0]))
         if ALLOW_TRAIN:
             agent.train()
-            if not episode % 1000:
+            if not episode % 1000 and episode > 0:
                 agent.save_model()
                 np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
             if not episode % SHOW_EVERY:
@@ -583,13 +586,15 @@ if __name__ == "__main__":
 
         Games = []  # Close screen
         States = []
-        for lopp_ind in range(SIM_COUNT):
-            if lopp_ind == 0:
+        for loop_ind in range(SIM_COUNT):
+            if loop_ind == 0:
                 game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
             else:
                 game = Game(food_ammount=1, render=False, view_len=VIEW_LEN)
+            state = game.reset()
             Games.append(game)
-            States.append(game.reset())
+            States.append(state)
+
         Dones = [False] * len(Games)
         Scores = [0] * len(Games)
         step = 0
@@ -600,7 +605,7 @@ if __name__ == "__main__":
                 render = False
                 print("Render stopped.")
             step += 1
-            Old_states = np.array(States.copy())
+            Old_states = States
 
             if eps > np.random.random():
                 Actions = np.random.randint(0, ACTIONS, len(Games))
@@ -618,14 +623,15 @@ if __name__ == "__main__":
                 # more_info = np.array(more_info).reshape(-1, 3)
 
                 Predictions = agent.model.predict([Areas, More_Infos])
-
                 Actions = np.argmax(Predictions, axis=1)
+
                 if PLOT_ALL_QS:
                     for action, predict in zip(Actions, Predictions):
                         pass
                         Predicts[0].append(action)
                         Predicts[1].append(predict[action])
             States = []
+            assert len(Games) == len(Dones)
             for g_index, game in enumerate(Games):
                 done, reward, state = game.step(action=Actions[g_index])
                 agent.update_memory((Old_states[g_index], state, reward, Actions[g_index], done))
@@ -725,5 +731,7 @@ if __name__ == "__main__":
 
     if not SAVE_PICS:
         plt.show()
+    # train - clear memory
+    if settings.SOUND_ALERT:
+        os.system("play -nq -t alsa synth 0.1 sine 1150")
 
-    os.system("play -nq -t alsa synth 2 sine 1250")
