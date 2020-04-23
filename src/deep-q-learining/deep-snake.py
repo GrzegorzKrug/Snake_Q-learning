@@ -11,7 +11,7 @@ import time
 import os
 
 from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input
-from keras.models import Model, load_model
+from keras.models import Model, load_model, Sequential
 from keras.utils import plot_model
 from keras.optimizers import Adam
 from collections import deque
@@ -225,7 +225,7 @@ class Game:
             view-area, shape(2*viewlen + 1), elements: 0-path, 1-collision
         """
         a = self.view_len * 2 + 1
-        view_area = np.zeros((a, a), dtype=int)
+        view_area = np.zeros((a, a))
         for iy in range(a):
             for ix in range(a):
                 x = int(self.x + (ix - self.view_len) * self.rect_size)
@@ -255,8 +255,9 @@ class Game:
         food_info = [
                 (food[0] - self.x)/self.width,
                 (self.y - food[1])/self.height]
-
-        out = np.concatenate([view_area, food_info, [self.direction])
+        view_area = view_area.ravel()
+        out = np.concatenate([view_area, food_info, [self.direction]])
+        out = np.array(out)
         return out
 
     def observation(self):
@@ -332,7 +333,7 @@ class Game:
                 value 1 is wall / tail
         """
         self._reset()
-        return self.observation()
+        return self.observation_array()
 
     def step(self, action):
         """
@@ -393,11 +394,11 @@ class Game:
         else:
             reward = settings.MOVE_PENALTY
 
-        state = self.observation()
+        state = self.observation_array()
 
         if self.current_time >= self.time_out:
             self.done = True
-            reward = settings.DEAD_PENALTY / 10
+            reward = settings.MOVE_PENALTY * 10
 
         if not f_run:  # Dead
             self.done = True
@@ -416,7 +417,7 @@ class Game:
 
 class Agent:
     def __init__(self,
-                 minibatch_size, pic_size, direction_with_food_array,
+                 minibatch_size, input_shape,
                  action_space,
                  learining_rate=0.001):
 
@@ -425,8 +426,7 @@ class Agent:
                             f"{dt.tm_hour:>02}-{dt.tm_min:>02}-{dt.tm_sec:>02}"
 
         self.minibatch_size = minibatch_size
-        self.pic_size = pic_size
-        self.direction_with_food_array = direction_with_food_array
+        self.input_shape = input_shape
         self.action_space = action_space
         self.learning_rate = learining_rate
         self.memory = deque(maxlen=REPLAY_MEMORY_SIZE)
@@ -446,29 +446,11 @@ class Agent:
         self.model.summary()
 
     def create_model(self):
-        input_1 = Input(shape=self.pic_size)
-
-        # layer_1 = Conv2D(32, (5, 5), padding='same', activation='relu')(input_1)
-        # layer_1 = MaxPooling2D()(layer_1)
-        # layer_1 = Conv2D(32, (2, 2), padding='same', activation='relu')(layer_1)
-        # layer_1 = MaxPooling2D()(layer_1)
-        layer_1 = Flatten()(input_1)
-        layer_1 = Dense(32, activation='relu')(layer_1)
-
-        input_2 = Input(shape=self.direction_with_food_array)
-        layer_2_2 = Dense(16, activation='relu')(input_2)
-
-        merged_vector = keras.layers.concatenate([layer_1, layer_2_2], axis=-1)
-        # layer_3 = Dense(32, activation='relu')(merged_vector)
-        # layer_4 = Dense(32, activation='relu')(merged_vector)
-        layer_5 = Dropout(0.2)(merged_vector)
-        layer_6 = Dense(128, activation='relu')(layer_5)
-        output_layer = Dense(self.action_space, activation='linear')(layer_6)
-
-        model = Model(inputs=[input_1, input_2], outputs=output_layer)
-        # model.compile(optimizer=Adam(lr=self.learning_rate),
-        #               loss='mse',
-        #               metrics=['accuracy'])
+        model = Sequential()
+        model.add(Dense(128, input_shape=self.input_shape, activation='relu'))
+        model.add(Dropout(0.2))
+        model.add(Dense(128, activation='relu'))
+        model.add(Dense(self.action_space, activation='linear'))
 
         plot_model(model, f"{MODEL_NAME}/model.png")
         with open(f"{MODEL_NAME}/model_summary.txt", 'w') as file:
@@ -495,39 +477,32 @@ class Agent:
             return None
 
         train_data = random.sample(self.memory, MINIBATCH_SIZE)
-        old_view = []
-        old_info = []
-        new_view = []
-        new_info = []
-        rewards = []
-        done_list = []
-        actions = []
+        Old_states = []
+        New_states = []
+        Rewards = []
+        Dones = []
+        Actions = []
 
         for old_state, new_state, reward, action, done in train_data:
-            old_view.append(old_state[0])
-            old_info.append(old_state[1])
-            new_view.append(new_state[0])
-            new_info.append(new_state[1])
-            actions.append(action)
-            rewards.append(reward)
-            done_list.append(done)
+            Old_states.append(old_state)
+            New_states.append(new_state)
+            Actions.append(action)
+            Rewards.append(reward)
+            Dones.append(done)
 
-        input1 = np.array(old_view)
-        input2 = np.array(old_info)
-        input3 = np.array(new_view)
-        input4 = np.array(new_info)
+        Old_states = np.array(Old_states)
+        New_states = np.array(New_states)
+        old_qs = self.model.predict(Old_states)
+        new_qs = self.model.predict(New_states)
 
-        old_qs = self.model.predict([input1, input2])
-        new_qs = self.model.predict([input3, input4])
-
-        for old_q, new_q, rew, act, done in zip(old_qs, new_qs, rewards, actions, done_list):
+        for old_q, new_q, rew, act, done in zip(old_qs, new_qs, Rewards, Actions, Dones):
             if done:
                 old_q[act] = rew
             else:
                 future_best_val = np.max(new_q)
                 old_q[act] = rew + DISCOUNT * future_best_val
 
-        self.model.fit([input1, input2], old_qs,
+        self.model.fit(Old_states, old_qs,
                        verbose=0, shuffle=False, epochs=1)
 
 
@@ -571,10 +546,9 @@ if __name__ == "__main__":
 
     "Environment"
     ACTIONS = 3  # Turn left, right or none
-    FIELD_STATES = 2
     VIEW_AREA = settings.VIEW_AREA
     VIEW_LEN = settings.VIEW_LEN
-
+    INPUT_SHAPE = (VIEW_AREA * VIEW_AREA + 3, )  # 3 is more infos
     Predicts = [[], []]
     Pred_sep = []
 
@@ -587,8 +561,7 @@ if __name__ == "__main__":
     }
 
     agent = Agent(minibatch_size=MINIBATCH_SIZE,
-                  pic_size=(VIEW_AREA, VIEW_AREA,),
-                  direction_with_food_array=(3,),
+                  input_shape=INPUT_SHAPE,
                   action_space=3)
 
     try:
@@ -605,40 +578,39 @@ if __name__ == "__main__":
             if not episode % 1000 and episode > 0:
                 agent.save_model()
                 np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
-            if not episode % SHOW_EVERY:
-                render = True
-            else:
-                render = False
-
-            if episode == EPOCHS - 1:
-                eps = 0
-                render = True
-                if SHOW_LAST:
-                    input("Last agent is waiting...")
-            elif episode == 0:
-                eps = 0
-                render = True
-            elif episode < EPS_INTERVAL / 2:
-                eps = FIRST_EPS
-            elif episode < EPS_INTERVAL:
-                eps = 0.3
-            else:
-                try:
-                    eps = next(eps_iter)
-                except StopIteration:
-                    eps_iter = iter(np.linspace(INITIAL_SMALL_EPS, END_EPS, EPS_INTERVAL))
-                    eps = next(eps_iter)
-        else:
+        if not episode % SHOW_EVERY:
             render = True
+        else:
+            render = False
+
+        if episode == EPOCHS - 1:
+            eps = 0
+            render = True
+            if SHOW_LAST:
+                input("Last agent is waiting...")
+        elif episode == 0:
+            eps = 0
+            render = True
+        elif episode < EPS_INTERVAL / 2:
+            eps = FIRST_EPS
+        elif episode < EPS_INTERVAL:
+            eps = 0.3
+        else:
+            try:
+                eps = next(eps_iter)
+            except StopIteration:
+                eps_iter = iter(np.linspace(INITIAL_SMALL_EPS, END_EPS, EPS_INTERVAL))
+                eps = next(eps_iter)
+        if not ALLOW_TRAIN:
             eps = 0
 
         Games = []  # Close screen
         States = []
         for loop_ind in range(SIM_COUNT):
             if loop_ind == 0:
-                game = Game(food_ammount=1, render=render, view_len=VIEW_LEN)
+                game = Game(food_ammount=settings.FOOD_COUNT, render=render, view_len=VIEW_LEN, time_out=settings.TIMEOUT)
             else:
-                game = Game(food_ammount=1, render=False, view_len=VIEW_LEN)
+                game = Game(food_ammount=settings.FOOD_COUNT, render=False, view_len=VIEW_LEN, time_out=settings.TIMEOUT)
             state = game.reset()
             Games.append(game)
             States.append(state)
@@ -649,28 +621,16 @@ if __name__ == "__main__":
         All_score = []
         All_steps = []
         while len(Games):
-            if render and step > 700:
-                render = False
-                print("Render stopped.")
+            # if render and step > 1000:
+            #     render = False
+            #     print("Render stopped.")
             step += 1
-            Old_states = States
+            Old_states = np.array(States)
 
             if eps > np.random.random():
                 Actions = np.random.randint(0, ACTIONS, len(Games))
             else:
-                Areas = []
-                More_Infos = []
-                for area, more_info in Old_states:
-                    Areas.append(area)
-                    More_Infos.append(more_info)
-
-                Areas = np.array(Areas)
-                More_Infos = np.array(More_Infos)
-
-                # Areas = np.array(Areas).reshape((-1, VIEW_AREA, VIEW_AREA, 1))
-                # more_info = np.array(more_info).reshape(-1, 3)
-
-                Predictions = agent.model.predict([Areas, More_Infos])
+                Predictions = agent.model.predict(Old_states)
                 Actions = np.argmax(Predictions, axis=1)
                 if settings.PLOT_FIRST_QS:
                     Predicts[0].append(Actions[0])
