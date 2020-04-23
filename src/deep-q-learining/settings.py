@@ -1,7 +1,7 @@
 VIEW_LEN = 3
 VIEW_AREA = VIEW_LEN * 2 + 1
 
-EPOCHS = 500
+EPOCHS = 200
 SIM_COUNT = 20
 full_game = 2500
 FOOD_COUNT = 1
@@ -18,7 +18,7 @@ if TRAIN_ALL:
 else:
     REPLAY_MEMORY_SIZE = 5 * full_game * SIM_COUNT  # 10 full games 3k each
 
-MODEL_NAME = f"Model19-TrainAll-{TRAIN_ALL}--View-{VIEW_LEN}--B_{MINIBATCH_SIZE}-Lr{AGENT_LR}"
+MODEL_NAME = f"Model21-4Actions-{TRAIN_ALL}--View-{VIEW_LEN}--B_{MINIBATCH_SIZE}-Lr{AGENT_LR}"
 
 
 SAVE_PICS = ALLOW_TRAIN

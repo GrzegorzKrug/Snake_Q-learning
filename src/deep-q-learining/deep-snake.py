@@ -256,57 +256,9 @@ class Game:
                 (food[0] - self.x)/self.width,
                 (self.y - food[1])/self.height]
         view_area = view_area.ravel()
-        out = np.concatenate([view_area, food_info, [self.direction]])
+        out = np.concatenate([view_area, food_info])
         out = np.array(out)
         return out
-
-    def observation(self):
-        """
-
-        :return:
-        int:
-            direction in range<0, 3>
-        list:
-            food-head relative position shape=(2)
-            positive x - move right
-            positive y - move top
-        list:
-            view-area, shape(2*viewlen + 1), elements: 0-path, 1-collision
-        """
-        a = self.view_len * 2 + 1
-        view_area = np.zeros((a, a), dtype=int)
-        for iy in range(a):
-            for ix in range(a):
-                x = int(self.x + (ix - self.view_len) * self.rect_size)
-                y = int(self.y + (iy - self.view_len) * self.rect_size)
-
-                if x >= self.width or x < 0 or \
-                        y >= self.height or y < 0:
-                    view_area[iy, ix] = 1
-                    continue
-
-                for tail in self.tail:
-                    if [x, y] == tail:
-                        view_area[iy, ix] = 1
-                        break
-
-                for food in self.food:
-                    if [x, y] == food:
-                        view_area[iy, ix] = 2
-                        break
-        view_area = view_area / 2
-        if len(self.food) > 0:
-            food = self.food[0]
-        else:
-            food = [0, 0]
-            print(f"No Food info")
-
-        food_info = [
-                (food[0] - self.x)/self.width,
-                (self.y - food[1])/self.height]
-
-        out = food_info + [self.direction / 4]
-        return view_area, out
 
     def place_food(self):
         while True:
@@ -341,10 +293,9 @@ class Game:
         Parameters
         ----------
         action: int
-            0 - turn left
-            1 - go straight
-            2 - turn right
-
+                  0       Up
+                3   1     Left / Right
+                  2       Down
         Returns
         -------
         tuple:
@@ -357,7 +308,7 @@ class Game:
                     float: relative food y position
                     int: direction
         """
-        new_direction = (self.direction + (action - 1)) % 4
+        new_direction = action
         if self.done:
             print("Run has ended")
         f_run = True
@@ -375,7 +326,7 @@ class Game:
         if hit1 or hit2:  # <<---- Collision, Disable loop
             f_run = False
             if hit2:
-                self.move_snake((new_direction+2) % 4, force_move=True)
+                self.move_snake((action+2) % 4, force_move=True)
             self.speed_multiplier = 0
             _color = (255, 0, 0)
         else:
@@ -545,10 +496,10 @@ if __name__ == "__main__":
     os.makedirs(MODEL_NAME, exist_ok=True)
 
     "Environment"
-    ACTIONS = 3  # Turn left, right or none
+    ACTIONS = 4  # Turn left, right or none
     VIEW_AREA = settings.VIEW_AREA
     VIEW_LEN = settings.VIEW_LEN
-    INPUT_SHAPE = (VIEW_AREA * VIEW_AREA + 3, )  # 3 is more infos
+    INPUT_SHAPE = (VIEW_AREA * VIEW_AREA + 2, )  # 2 is more infos
     Predicts = [[], []]
     Pred_sep = []
 
@@ -562,7 +513,7 @@ if __name__ == "__main__":
 
     agent = Agent(minibatch_size=MINIBATCH_SIZE,
                   input_shape=INPUT_SHAPE,
-                  action_space=3)
+                  action_space=ACTIONS)
 
     try:
         episode_offset = np.load(f"{MODEL_NAME}/last-episode-num.npy", allow_pickle=True)
@@ -712,7 +663,7 @@ if __name__ == "__main__":
     samples = []
     colors = []
     for action, q_val in zip(Predicts[0], Predicts[1]):
-        color = 'g' if action == 0 else 'm' if action == 1 else 'b'
+        color = 'g' if action == 0 else 'b' if action == 1 else 'm' if action == 2 else 'r'
         samples.append(q_val)
         colors.append(color)
 
@@ -720,8 +671,7 @@ if __name__ == "__main__":
     y_min, y_max = np.min(Predicts[1]), np.max(Predicts[1])
     for sep in Pred_sep:
         last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=0.3, alpha=0.1)
-    plt.title(f"{MODEL_NAME}\nMovement evolution in time, learning-rate:{AGENT_LR}\n"
-              "Left Green, Red None, Blue Right")
+    plt.title(f"{MODEL_NAME}\nMovement 'directions' evolution in time, learning-rate:{AGENT_LR}\n")
     last_line.set_label("Epoch separator")
     plt.xlabel("Sample")
     plt.ylabel("Q-value")
