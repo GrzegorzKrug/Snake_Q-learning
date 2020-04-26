@@ -22,47 +22,44 @@ from copy import copy, deepcopy
 class Game:
     _count = 0
 
-    def __init__(self, width=1.4e3, height=8e2, render=False, food_ammount=3,
-                 view_len=4, time_out=100):
-        """
-        This is init function, change runtime values in self._reset()
-        Parameters
-        ----------
-        width
-        height
-        render
-        food_ammount
-        view_len
-        time_out
-        """
+    def __init__(self, food_ammount=1, snake_len=3, width=30, height=30, free_moves=200, view_len=3,
+                 random_start=False, render=False):
+        """"""
+        self.render = render
+        self.food_limit = food_ammount
+        self.view_len = view_len
+        self.area_len = self.view_len * 2 + 1
+        self.free_moves = free_moves
+        self.initial_snake_len = snake_len
+        self.random_start = random_start
+        self.MOVE_PENALTY = settings.MOVE_PENALTY
+        self.FOOD_REWARD = settings.FOOD_REWARD
+        self.DEATH_PENALTY = settings.DEATH_PENALTY
+
+        self.width, self.height = width, height
+        self.box_size = 25
+        self.size = self.width * self.box_size, self.height * self.box_size
+
+        self.score = 0
+        self.direction = 0
+        self.moves_left = self.free_moves
+        self.time = 0
+        self.done = False
+
+        self.head = [0, 0]
+        self.tail = deque([self.head] * self.initial_snake_len, maxlen=self.width*self.height+1)
+        self.snake_len = self.initial_snake_len
+        self.Food = []
+        self.fill_food()
+
+        self._reset()
+        Game._count += 1
+
         if render:
             pygame.init()
             width = int(width)
             height = int(height)
-            self.screen = pygame.display.set_mode((width, height))
-
-        self.render = render
-        self.food_on_screen = food_ammount
-        self.view_len = view_len
-        self.time_out = time_out
-
-        self.size = self.width, self.height = width, height
-        self.score = 0
-        self.direction = 1
-        self.x = 0
-        self.y = 0
-        self.tail = [[self.x, self.y]]
-        self.tail_len = 10
-        self.food = []
-        self.done = False
-        self.current_time = 0
-
-        self.move_time = 1
-
-        self.rect_size = 25
-        self.speed_multiplier = 1
-        self._reset()
-        Game._count += 1
+            self.screen = pygame.display.set_mode((self.box_size * width, self.box_size * height))
 
     def __del__(self):
         Game._count -= 1
@@ -71,299 +68,193 @@ class Game:
 
     def _reset(self):
         self.score = 0
-        self.direction = 1
-        self.speed_multiplier = 1
-        self.x = (np.random.randint(-10, 10) + self.width // 2 // self.rect_size) * self.rect_size
-        self.y = (np.random.randint(-5, 5) + self.height // 2 // self.rect_size) * self.rect_size
-        self.tail_len = 10
-        self.tail = [[self.x, self.y]]
-        self.food = []
+        self.direction = 0
+        self.moves_left = self.free_moves
+        self.time = 0
         self.done = False
-        self.current_time = 0
-        self.food_refill(True, self.food_on_screen)
 
-    def check_border(self, border=True):
-        hit = False
-        if border:  # Screen edge is border
-            # Checking X values in proper range
-            if self.x >= self.width:
-                self.x = self.width - self.rect_size
-                hit = True
-            elif self.x < 0:
-                self.x = 0
-                hit = True
-            # Checking Y values in proper range
-            if self.y >= self.height:
-                self.y = self.height - self.rect_size
-                hit = True
-            elif self.y < 0:
-                self.y = 0
-                hit = True  # if colision with wall return hit
+        self.head = [self.width // 2, self.height//2]
+        self.tail = deque([self.head] * self.initial_snake_len, maxlen=self.width * self.height + 1)
+        self.snake_len = self.initial_snake_len
+        self.Food = []
+        self.fill_food()
 
-        else:  # Screen edge is borderless (Continuous world)
-            # Checking X values in proper range
-            if self.x >= self.width:
-                self.x = 0
-            elif self.x < 0:
-                self.x = self.width - self.rect_size
-            # Checking Y values in proper range
-            if self.y >= self.height:
-                self.y = 0
-            elif self.y < 0:
-                self.y = self.height - self.rect_size
-        return hit
+    def reset(self):
+        self._reset()
+        obs = self.observation()
+        return obs
 
-    def check_collision_with_food(self, x, y):
-        for pos in self.food:
-            if [x, y] == pos:
-                return True
-        return False
+    def fill_food(self):
+        while len(self.Food) < self.food_limit:
+            self.place_food()
 
-    def check_collision_with_observationtacles(self, x, y):
-        for pos in self.tail[1:-2]:
-            if [x, y] == pos:
-                return True
+    def place_food(self):
+        while True:
+            valid_to_brake = True
+            new_food_pos = [np.random.randint(0, self.width), np.random.randint(0, self.height)]
+            if new_food_pos == self.head:
+                # Repeat while with new food
+                continue
+            for food in self.Food:
+                if food == new_food_pos:
+                    valid_to_brake = False
+                    break
+            if valid_to_brake: break
+        self.Food.append(new_food_pos)
 
-    def check_collision_with_snake(self, x, y):
-        for pos in self.tail:
-            if [x, y] == pos:
-                return True
-        return False
+    def observation(self):
+        area = np.ones((self.area_len, self.area_len))
+        for arr_y in range(self.area_len):
+            for arr_x in range(self.area_len):
+                y = arr_y - self.view_len
+                x = arr_x - self.view_len
+                if x < 0 or y < 0 or x >= self.width or y >= self.height:
+                    area[y, x] = 2
 
-    def display_score(self):
-        my_font = pygame.font.SysFont('Comic Sans MS', 30)
-        text_surface = my_font.render('Food-eaten = ' + str(self.score), False, (255, 255, 255))
-        self.screen.blit(text_surface, (0, 0))
+        area = (area / 2).ravel()
+        # output = np.concatenate([area, [self.direction / 4]])
+        return area
+
+    def random_action(self):
+        new_direction = (self.direction + np.random.randint(-1, 2)) % 4
+        return new_direction
+
+    def move_snake(self, new_direction):
+        """
+        Directions
+          0   Up
+        3   1 Left / Right
+          2   Down
+        Parameters
+        ----------
+        new_direction
+
+        Returns
+        -------
+        return collision, food_eaten, action_valid
+        """
+        # Check if action is valid
+        if self.direction == 0 and new_direction == 2 or \
+                self.direction == 1 and new_direction == 3 or \
+                self.direction == 2 and new_direction == 0 or \
+                self.direction == 3 and new_direction == 1:
+            action_valid = False
+        else:
+            action_valid = True
+
+        if action_valid:
+            new_direction = new_direction
+        else:
+            new_direction = self.direction
+
+        new_x = self.head[0] + (1 if new_direction == 1 else -1 if new_direction == 3 else 0)
+        new_y = self.head[1] + (1 if new_direction == 2 else -1 if new_direction == 0 else 0)
+        new_pos = [new_x, new_y]
+        if new_x >= self.width or new_x < 0 or new_y >= self.width or new_y < 0:
+            collision = True
+        else:
+            collision = False
+
+        if not collision:
+            for tail in list(self.tail)[1:]:  # First tail segment will move
+                if new_pos == tail:
+                    collision = True
+                    break
+
+        food_eaten = False
+        if not collision:
+            self.head = new_pos
+            for f_index, food in enumerate(self.Food):
+                if self.head == food:
+                    self.Food.pop(f_index)
+                    self.snake_len += 1
+                    food_eaten = True
+                    break
+
+            self.update_tail()
+        self.direction = new_direction
+        return collision, food_eaten, action_valid
+
+    def update_tail(self):
+        self.tail.append(self.head)
+        while len(self.tail) > self.snake_len:  # Head is separate
+            self.tail.popleft()
+
+    def step(self, action=None):
+        """
+
+        Parameters
+        ----------
+        action
+
+        Returns
+        -------
+        observation
+        reward
+        done
+
+        """
+        self.moves_left -= 1
+        self.time += 1
+        if self.done:
+            print("Game has been already ended!")
+            done = True
+        else:
+            done = False
+
+        collision, food, action_valid = self.move_snake(action)
+
+        if not action_valid:
+            reward = self.DEATH_PENALTY * 2
+        elif collision:
+            reward = self.DEATH_PENALTY
+            done = True
+        elif food:
+            reward = self.FOOD_REWARD
+            self.moves_left = self.free_moves
+        else:
+            reward = self.MOVE_PENALTY
+
+        if self.moves_left < 1:
+            done = True
+            if not collision and action_valid:
+                reward = self.MOVE_PENALTY * 2
+
+        if done:
+            self.done = done
+        observation = self.observation()
+
+        return observation, reward, done
 
     def draw(self):
         if self.done:
             head_color = (255, 0, 0)
         else:
             head_color = (130, 255, 255)
-        self.screen.fill((30, 30, 50))
-        pygame.draw.rect(self.screen, (50, 150, 130),
-                         (self.tail[0][0], self.tail[0][1], self.rect_size,
-                          self.rect_size))  # last tail piece
-        for tail in self.tail[1:]:
-            pygame.draw.rect(self.screen, (35, 120, 50), (tail[0], tail[1], self.rect_size, self.rect_size))
-        pygame.draw.rect(self.screen, head_color, (self.x, self.y, self.rect_size, self.rect_size))
 
-        for food in self.food:
-            pygame.draw.rect(self.screen, (0, 255, 0), (food[0], food[1], self.rect_size, self.rect_size))
+        self.screen.fill((30, 30, 50))
+
+        for tail in self.tail:
+            pygame.draw.rect(self.screen, (35, 120, 50),
+                             (tail[0] * self.box_size, tail[1] * self.box_size, self.box_size,
+                              self.box_size))
+        pygame.draw.rect(self.screen, head_color,
+                         (self.head[0] * self.box_size, self.head[1] * self.box_size, self.box_size,
+                          self.box_size))
+
+        for food in self.Food:
+            pygame.draw.rect(self.screen, (0, 255, 0), (food[0] * self.box_size, food[1] * self.box_size, self.box_size, self.box_size))
 
         self.display_score()
         pygame.display.update()
 
-    def eat_food(self):
-        """
+    def display_score(self):
+        my_font = pygame.font.SysFont('Comic Sans MS', 30)
+        text_surface = my_font.render('Food-eaten = ' + str(self.score), False, (255, 255, 255))
+        self.screen.blit(text_surface, (0, 0))
 
-        Returns
-        -------
-        int: quantity of eaten food
-        """
-        out = 0
-        for i, food in enumerate(self.food):
-            if self.check_collision_with_snake(food[0], food[1]):
-                self.food.pop(i)
-                self.tail_len += 1
-                self.score += 1
-                out += 1
-                self.place_food()
-                break
-        return out
-
-    def food_refill(self, multi_food=False, n=1):
-        while multi_food and len(self.food) < n \
-                or len(self.food) < 1:
-            self.place_food()
-
-    def move_snake(self, new_direction, reverse=False, force_move=False):
-        """
-        Directions
-          0       Up
-        3   1     Left / Right
-          2       Down
-        """
-        new_direction = int(new_direction)
-        current_speed = self.speed_multiplier * self.rect_size
-        # Turn only left or right
-        if not ((self.direction in [0, 2] and new_direction in [0, 2])
-                or (self.direction in [1, 3] and new_direction in [1, 3])) \
-                or force_move:
-            self.direction = new_direction
-
-        if reverse:
-            if self.direction == 0:
-                self.y += current_speed
-            elif self.direction == 1:
-                self.x -= current_speed
-            elif self.direction == 2:
-                self.y -= current_speed
-            else:
-                self.x += current_speed
-        else:
-            if self.direction == 0:
-                self.y -= current_speed
-            elif self.direction == 1:
-                self.x += current_speed
-            elif self.direction == 2:
-                self.y += current_speed
-            else:
-                self.x -= current_speed
-
-    def observation_array(self):
-        """
-
-        :return:
-        int:
-            direction in range<0, 3>
-        list:
-            food-head relative position shape=(2)
-            positive x - move right
-            positive y - move top
-        list:
-            view-area, shape(2*viewlen + 1), elements: 0-path, 1-collision
-        """
-        a = self.view_len * 2 + 1
-        view_area = np.zeros((a, a))
-        for iy in range(a):
-            for ix in range(a):
-                x = int(self.x + (ix - self.view_len) * self.rect_size)
-                y = int(self.y + (iy - self.view_len) * self.rect_size)
-
-                if x >= self.width or x < 0 or \
-                        y >= self.height or y < 0:
-                    view_area[iy, ix] = 2
-                    continue
-
-                for tail in self.tail:
-                    if [x, y] == tail:
-                        view_area[iy, ix] = 2
-                        break
-
-                for food in self.food:
-                    if [x, y] == food:
-                        view_area[iy, ix] = 1
-                        break
-        view_area = view_area / 2
-        if len(self.food) > 0:
-            food = self.food[0]
-        else:
-            food = [0, 0]
-            print(f"No Food info")
-
-        food_info = [
-                (food[0] - self.x)/self.width,
-                (self.y - food[1])/self.height]
-        view_area = view_area.ravel()
-        out = np.concatenate([view_area, food_info])
-        out = np.array(out)
-        return out
-
-    def place_food(self):
-        while True:
-            rx = np.random.rand() * (self.width - 1)
-            ry = np.random.rand() * (self.height - 1)
-
-            rx = round(rx // self.rect_size * self.rect_size)
-            ry = round(ry // self.rect_size * self.rect_size)
-
-            if self.check_collision_with_food(rx, ry):
-                continue
-            break
-        self.food += [[rx, ry]]
-
-    def reset(self):
-        """
-        Returns
-        -------
-        tuple: observation
-            int: direction
-            list of ints: shape=(2), food position relative,
-            list of ints: shape=(3,3), view_area
-                value 0 is path,
-                value 1 is wall / tail
-        """
-        self._reset()
-        return self.observation_array()
-
-    def step(self, action):
-        """
-        Function makes one step in game and returns new observation
-        Parameters
-        ----------
-        action: int
-                  0       Up
-                3   1     Left / Right
-                  2       Down
-        Returns
-        -------
-        tuple:
-            bool: done
-            int: reward
-            tuple: new_state
-                2DList: ViewArea
-                Tuple:
-                    float: relative food x position
-                    float: relative food y position
-                    int: direction
-        """
-        new_direction = action
-        if self.done:
-            print("Run has ended")
-        f_run = True
-        self.current_time += 1
-
-        if self.render:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    f_run = False
-                    break
-
-        self.move_snake(new_direction)
-        hit1 = self.check_border()
-        hit2 = self.check_collision_with_observationtacles(self.x, self.y)
-        if hit1 or hit2:  # <<---- Collision, Disable loop
-            f_run = False
-            if hit2:
-                self.move_snake((action+2) % 4, force_move=True)
-            self.speed_multiplier = 0
-            _color = (255, 0, 0)
-        else:
-            _color = (130, 255, 255)
-        self.update_tail()
-
-        consumed = self.eat_food()  # Eaten food
-
-        self.food_refill(True, self.food_on_screen)
-        if consumed > 0:
-            if settings.FOOD_REWARD_RISING:
-                reward = settings.FOOD_REWARD * self.score
-            else:
-                reward = settings.FOOD_REWARD
-            self.current_time = 0
-        else:
-            reward = settings.MOVE_PENALTY
-
-        state = self.observation_array()
-
-        if self.current_time >= self.time_out:
-            self.done = True
-            reward = settings.MOVE_PENALTY * 10
-
-        if not f_run:  # Dead
-            self.done = True
-            reward = settings.DEAD_PENALTY
-
-        return self.done, reward, state
-
-    def update_tail(self):
-        if self.tail[-1] != [self.x, self.y]:
-            self.tail += [[self.x, self.y]]
-
-        if len(self.tail) > (self.tail_len + 1):
-            self.tail = self.tail[-self.tail_len - 1:]
-            # self.tail.pop(0)
+        text_surface = my_font.render('Moves left = ' + str(self.moves_left), False, (255, 255, 255))
+        self.screen.blit(text_surface, (0, 20))
 
 
 class Agent:
@@ -499,7 +390,7 @@ if __name__ == "__main__":
     ACTIONS = 4  # Turn left, right or none
     VIEW_AREA = settings.VIEW_AREA
     VIEW_LEN = settings.VIEW_LEN
-    INPUT_SHAPE = (VIEW_AREA * VIEW_AREA + 2, )  # 2 is more infos
+    INPUT_SHAPE = (VIEW_AREA * VIEW_AREA, )  # 2 is more infos
     Predicts = [[], []]
     Pred_sep = []
 
@@ -522,6 +413,8 @@ if __name__ == "__main__":
 
     eps_iter = iter(np.linspace(RAMP_EPS, END_EPS, EPS_INTERVAL))
     time_start = time.time()
+    emergency_break = False
+
     for episode in range(0, EPOCHS):
         Pred_sep.append(len(Predicts[0]))
         if ALLOW_TRAIN:
@@ -534,7 +427,7 @@ if __name__ == "__main__":
         else:
             render = False
 
-        if episode == EPOCHS - 1:
+        if episode == EPOCHS - 1 or emergency_break:
             eps = 0
             render = True
             if SHOW_LAST:
@@ -559,9 +452,9 @@ if __name__ == "__main__":
         States = []
         for loop_ind in range(SIM_COUNT):
             if loop_ind == 0:
-                game = Game(food_ammount=settings.FOOD_COUNT, render=render, view_len=VIEW_LEN, time_out=settings.TIMEOUT)
+                game = Game(food_ammount=settings.FOOD_COUNT, render=render, view_len=VIEW_LEN, free_moves=settings.TIMEOUT)
             else:
-                game = Game(food_ammount=settings.FOOD_COUNT, render=False, view_len=VIEW_LEN, time_out=settings.TIMEOUT)
+                game = Game(food_ammount=settings.FOOD_COUNT, render=False, view_len=VIEW_LEN, free_moves=settings.TIMEOUT)
             state = game.reset()
             Games.append(game)
             States.append(state)
@@ -579,7 +472,7 @@ if __name__ == "__main__":
             Old_states = np.array(States)
 
             if eps > np.random.random():
-                Actions = np.random.randint(0, ACTIONS, len(Games))
+                Actions = [game.random_action() for game in Games]
             else:
                 Predictions = agent.model.predict(Old_states)
                 Actions = np.argmax(Predictions, axis=1)
@@ -593,7 +486,7 @@ if __name__ == "__main__":
             States = []
             assert len(Games) == len(Dones)
             for g_index, game in enumerate(Games):
-                done, reward, state = game.step(action=Actions[g_index])
+                state, reward, done = game.step(action=Actions[g_index])
                 agent.update_memory((Old_states[g_index], state, reward, Actions[g_index], done))
                 Scores[g_index] += reward
                 Dones[g_index] = done
@@ -628,8 +521,13 @@ if __name__ == "__main__":
               f"avg-score: {np.mean(All_score):^8.1f}, "
               f"avg-steps: {np.mean(All_steps):^7.1f}"
               )
+        time_end = time.time()
+        if emergency_break:
+            break
+        elif settings.TRAIN_MAX_MIN_DURATION and (time_end - time_start) / 60 > settings.TRAIN_MAX_MIN_DURATION:
+            emergency_break = True
+
     print("Plotting data now...")
-    time_end = time.time()
     pygame.quit()
     style.use('ggplot')
     plt.figure(figsize=(20, 11))
@@ -682,7 +580,7 @@ if __name__ == "__main__":
 
     if ALLOW_TRAIN:
         agent.save_model()
-        np.save(f"{MODEL_NAME}/last-episode-num.npy", EPOCHS + episode_offset)
+        np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + 1 + episode_offset)
 
     print(f"Run ended: {MODEL_NAME}")
     print(f"Time elapsed: {(time_end-time_start)/60:3.1f}m, "
