@@ -223,7 +223,6 @@ class Game:
         if done:
             self.done = done
         observation = self.observation()
-
         return observation, reward, done
 
     def draw(self):
@@ -590,5 +589,5 @@ if __name__ == "__main__":
         plt.show()
     # train - clear memory
     if settings.SOUND_ALERT:
-        os.system("play -nq -t alsa synth 0.1 sine 1150")
+        os.system("play -nq -t alsa synth 0.3 sine 7150")
 
