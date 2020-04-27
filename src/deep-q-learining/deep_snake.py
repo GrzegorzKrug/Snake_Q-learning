@@ -129,22 +129,26 @@ class Game:
         return area
 
     def random_action(self):
+        """ Return valid action in current situation"""
         new_direction = (self.direction + np.random.randint(-1, 2)) % 4
         return new_direction
 
     def move_snake(self, new_direction):
         """
+        Move snake, and update environment
         Directions
           0   Up
         3   1 Left / Right
           2   Down
         Parameters
         ----------
-        new_direction
+        new_direction - int <0, 3>
 
         Returns
         -------
-        return collision, food_eaten, action_valid
+        collision - boolean
+        food_eaten - boolean
+        action_valid - boolean
         """
         # Check if action is valid
         if self.direction == 0 and new_direction == 2 or \
@@ -217,22 +221,24 @@ class Game:
 
         collision, food, action_valid = self.move_snake(action)
 
+        if collision:
+            done = True
+        elif self.moves_left < 1 and not food:
+            done = True
+
         if not action_valid:
             reward = self.DEATH_PENALTY * 2
         elif collision:
             reward = self.DEATH_PENALTY
-            done = True
+        elif self.moves_left < 1:
+            reward = self.MOVE_PENALTY * 2
         elif food:
             reward = self.FOOD_REWARD
-            self.score += 1
-            self.moves_left = self.free_moves
         else:
             reward = self.MOVE_PENALTY
 
-        if self.moves_left < 1:
-            done = True
-            if not collision and action_valid:
-                reward = self.MOVE_PENALTY * 2
+        if food:
+            self.moves_left = self.free_moves
 
         if done:
             self.done = done
@@ -246,7 +252,12 @@ class Game:
         else:
             head_color = (130, 255, 255)
 
-        self.screen.fill((30, 30, 50))
+        self.screen.fill((25, 20, 30))
+
+        # self.screen.fill((40, 40, 45))
+
+        pygame.draw.rect(self.screen, (40, 60, 45),
+                         ((self.head[0] - self.view_len) * self.box_size, (self.head[1] - self.view_len) * self.box_size, self.area_len * self.box_size, self.area_len * self.box_size))
 
         for tail in self.tail:
             pygame.draw.rect(self.screen, (35, 120, 50),
@@ -273,9 +284,11 @@ class Game:
 
 class Agent:
     def __init__(self,
-                 minibatch_size, input_shape,
+                 input_shape,
                  action_space,
-                 learining_rate=0.001):
+                 minibatch_size=128,
+                 learining_rate=0.0001,
+                 memory_size=10000):
 
         dt = datetime.datetime.timetuple(datetime.datetime.now())
         self.runtime_name = f"{dt.tm_mon:>02}-{dt.tm_mday:>02}--" \
@@ -285,15 +298,12 @@ class Agent:
         self.input_shape = input_shape
         self.action_space = action_space
         self.learning_rate = learining_rate
-        self.memory = deque(maxlen=REPLAY_MEMORY_SIZE)
-        if LOAD_MODEL:
-            load_success = self.load_model()
-            if load_success:
-                print(f"Loading model: {MODEL_NAME}")
-            else:
-                print(f"New model: {MODEL_NAME}")
-                self.model = self.create_model()
+        self.memory = deque(maxlen=memory_size)
+        load_success = self.load_model()
+        if load_success:
+            print(f"Loading model: {MODEL_NAME}")
         else:
+            print(f"New model: {MODEL_NAME}")
             self.model = self.create_model()
 
         self.model.compile(optimizer=Adam(lr=self.learning_rate),
@@ -322,7 +332,7 @@ class Agent:
         self.model.save(f"{MODEL_NAME}/model")
 
     def load_model(self):
-        if LOAD_MODEL and os.path.isfile(f"{MODEL_NAME}/model"):
+        if os.path.isfile(f"{MODEL_NAME}/model"):
             self.model = load_model(f"{MODEL_NAME}/model")
             return True
         else:
@@ -362,41 +372,41 @@ class Agent:
                        verbose=0, shuffle=False, epochs=1)
 
 
+EPOCHS = settings.EPOCHS
+SIM_COUNT = settings.SIM_COUNT
+MINIBATCH_SIZE = settings.MINIBATCH_SIZE
+
+REPLAY_MEMORY_SIZE = settings.REPLAY_MEMORY_SIZE
+MIN_REPLAY_MEMORY_SIZE = settings.MIN_REPLAY_MEMORY_SIZE
+
+DISCOUNT = settings.DISCOUNT
+AGENT_LR = settings.AGENT_LR
+FREE_MOVE = settings.FREE_MOVE
+
+MODEL_NAME = settings.MODEL_NAME
+LOAD_MODEL = settings.LOAD_MODEL
+ALLOW_TRAIN = settings.ALLOW_TRAIN
+SAVE_PICS = settings.SAVE_PICS
+
+STATE_OFFSET = settings.STATE_OFFSET
+FIRST_EPS = settings.FIRST_EPS
+RAMP_EPS = settings.RAMP_EPS
+INITIAL_SMALL_EPS = settings.INITIAL_SMALL_EPS
+END_EPS = settings.END_EPS
+EPS_INTERVAL = settings.EPS_INTERVAL
+
+SHOW_EVERY = settings.SHOW_EVERY
+RENDER_DELAY = settings.RENDER_DELAY
+
+SHOW_LAST = settings.SHOW_LAST
+PLOT_ALL_QS = settings.PLOT_ALL_QS
+COMBINE_QS = settings.COMBINE_QS
+
 if __name__ == "__main__":
     config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = False
     config.gpu_options.per_process_gpu_memory_fraction = 0.3
     sess = tf.compat.v1.Session(config=config)
-
-    EPOCHS = settings.EPOCHS
-    SIM_COUNT = settings.SIM_COUNT
-    MINIBATCH_SIZE = settings.MINIBATCH_SIZE
-
-    REPLAY_MEMORY_SIZE = settings.REPLAY_MEMORY_SIZE
-    MIN_REPLAY_MEMORY_SIZE = settings.MIN_REPLAY_MEMORY_SIZE
-
-    DISCOUNT = settings.DISCOUNT
-    AGENT_LR = settings.AGENT_LR
-    FREE_MOVE = settings.FREE_MOVE
-
-    MODEL_NAME = settings.MODEL_NAME
-    LOAD_MODEL = settings.LOAD_MODEL
-    ALLOW_TRAIN = settings.ALLOW_TRAIN
-    SAVE_PICS = settings.SAVE_PICS
-
-    STATE_OFFSET = settings.STATE_OFFSET
-    FIRST_EPS = settings.FIRST_EPS
-    RAMP_EPS = settings.RAMP_EPS
-    INITIAL_SMALL_EPS = settings.INITIAL_SMALL_EPS
-    END_EPS = settings.END_EPS
-    EPS_INTERVAL = settings.EPS_INTERVAL
-
-    SHOW_EVERY = settings.SHOW_EVERY
-    RENDER_DELAY = settings.RENDER_DELAY
-
-    SHOW_LAST = settings.SHOW_LAST
-    PLOT_ALL_QS = settings.PLOT_ALL_QS
-    COMBINE_QS = settings.COMBINE_QS
 
     os.makedirs(MODEL_NAME, exist_ok=True)
 
@@ -405,7 +415,7 @@ if __name__ == "__main__":
     VIEW_AREA = settings.VIEW_AREA
     VIEW_LEN = settings.VIEW_LEN
     INPUT_SHAPE = (VIEW_AREA * VIEW_AREA, )  # 2 is more infos
-    Predicts = [[], []]
+    Predicts = [[], [], [], []]
     Pred_sep = []
 
     stats = {
@@ -418,7 +428,8 @@ if __name__ == "__main__":
 
     agent = Agent(minibatch_size=MINIBATCH_SIZE,
                   input_shape=INPUT_SHAPE,
-                  action_space=ACTIONS)
+                  action_space=ACTIONS,
+                  memory_size=REPLAY_MEMORY_SIZE)
 
     try:
         episode_offset = np.load(f"{MODEL_NAME}/last-episode-num.npy", allow_pickle=True)
@@ -493,9 +504,12 @@ if __name__ == "__main__":
                     Predicts[0].append(Actions[0])
                     Predicts[1].append(Predictions[0][Actions[0]])
                 elif PLOT_ALL_QS:
-                    for action, predict in zip(Actions, Predictions):
-                        Predicts[0].append(action)
-                        Predicts[1].append(predict[action])
+                    for predict in Predictions:
+                        Predicts[0].append(predict[0])
+                        Predicts[1].append(predict[1])
+                        Predicts[2].append(predict[2])
+                        Predicts[3].append(predict[3])
+
             States = []
             assert len(Games) == len(Dones)
             for g_index, game in enumerate(Games):
@@ -570,18 +584,19 @@ if __name__ == "__main__":
     if SAVE_PICS:
         plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
 
+    # BIG PLOT
     plt.figure(figsize=(20, 11))
     samples = []
     colors = []
-    for action, q_val in zip(Predicts[0], Predicts[1]):
-        color = 'g' if action == 0 else 'b' if action == 1 else 'm' if action == 2 else 'r'
-        samples.append(q_val)
-        colors.append(color)
+    plt.scatter(range(len(Predicts[0])), Predicts[0], c='r', label='up', alpha=0.2, s=3, marker='o')
+    plt.scatter(range(len(Predicts[1])), Predicts[1], c='g', label='right', alpha=0.2, s=3, marker='o')
+    plt.scatter(range(len(Predicts[2])), Predicts[2], c='m', label='down', alpha=0.2, s=3, marker='o')
+    plt.scatter(range(len(Predicts[3])), Predicts[3], c='b', label='left', alpha=0.2, s=3, marker='o')
+    y_min, y_max = np.min(Predicts), np.max(Predicts)
 
-    plt.scatter(range(len(samples)), samples, c=colors, alpha=0.2, s=10, marker='.')
-    y_min, y_max = np.min(Predicts[1]), np.max(Predicts[1])
     for sep in Pred_sep:
-        last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=0.3, alpha=0.1)
+        last_line, = plt.plot([sep, sep], [y_min, y_max], c='k', linewidth=0.3, alpha=0.2)
+
     plt.title(f"{MODEL_NAME}\nMovement 'directions' evolution in time, learning-rate:{AGENT_LR}\n")
     last_line.set_label("Epoch separator")
     plt.xlabel("Sample")
@@ -603,5 +618,5 @@ if __name__ == "__main__":
         plt.show()
     # train - clear memory
     if settings.SOUND_ALERT:
-        os.system("play -nq -t alsa synth 0.3 sine 7150")
+        os.system("play -nq -t alsa synth 0.2 sine 150")
 
