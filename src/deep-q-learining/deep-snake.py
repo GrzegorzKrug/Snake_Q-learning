@@ -106,10 +106,23 @@ class Game:
         area = np.ones((self.area_len, self.area_len))
         for arr_y in range(self.area_len):
             for arr_x in range(self.area_len):
-                y = arr_y - self.view_len
-                x = arr_x - self.view_len
+                y = self.head[1] - (arr_y - self.view_len)
+                x = self.head[0] - self.view_len + arr_x
                 if x < 0 or y < 0 or x >= self.width or y >= self.height:
-                    area[y, x] = 2
+                    area[arr_y, arr_x] = 2
+                    continue
+
+                skip_tail = False
+                for food in self.Food:
+                    if [x, y] == food:
+                        area[arr_y, arr_x] = 0
+                        skip_tail = True
+                        break
+                if skip_tail:
+                    continue
+                for tail in self.tail:
+                    if [x, y] == tail:
+                        area[arr_y, arr_x] = 2
 
         area = (area / 2).ravel()
         # output = np.concatenate([area, [self.direction / 4]])
@@ -211,6 +224,7 @@ class Game:
             done = True
         elif food:
             reward = self.FOOD_REWARD
+            self.score += 1
             self.moves_left = self.free_moves
         else:
             reward = self.MOVE_PENALTY
@@ -222,6 +236,7 @@ class Game:
 
         if done:
             self.done = done
+        self.fill_food()
         observation = self.observation()
         return observation, reward, done
 
@@ -421,6 +436,7 @@ if __name__ == "__main__":
             if not episode % 1000 and episode > 0:
                 agent.save_model()
                 np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
+
         if not episode % SHOW_EVERY:
             render = True
         else:
@@ -431,7 +447,7 @@ if __name__ == "__main__":
             render = True
             if SHOW_LAST:
                 input("Last agent is waiting...")
-        elif episode == 0:
+        elif episode == 0 or not ALLOW_TRAIN:
             eps = 0
             render = True
         elif episode < EPS_INTERVAL / 2:
@@ -444,8 +460,6 @@ if __name__ == "__main__":
             except StopIteration:
                 eps_iter = iter(np.linspace(INITIAL_SMALL_EPS, END_EPS, EPS_INTERVAL))
                 eps = next(eps_iter)
-        if not ALLOW_TRAIN:
-            eps = 0
 
         Games = []  # Close screen
         States = []
