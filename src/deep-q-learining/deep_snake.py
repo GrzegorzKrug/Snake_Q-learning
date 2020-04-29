@@ -125,8 +125,9 @@ class Game:
                         area[arr_y, arr_x] = 2
 
         area = (area / 2).ravel()
-        # output = np.concatenate([area, [self.direction / 4]])
-        return area
+        food_relative_pos = (np.array(self.head) - np.array(self.Food[0])) / np.max(self.size)
+        output = np.concatenate([area, food_relative_pos])
+        return output
 
     def random_action(self):
         """ Return valid action in current situation"""
@@ -239,6 +240,7 @@ class Game:
 
         if food:
             self.moves_left = self.free_moves
+            self.score += 1
 
         if done:
             self.done = done
@@ -414,7 +416,7 @@ if __name__ == "__main__":
     ACTIONS = 4  # Turn left, right or none
     VIEW_AREA = settings.VIEW_AREA
     VIEW_LEN = settings.VIEW_LEN
-    INPUT_SHAPE = (VIEW_AREA * VIEW_AREA, )  # 2 is more infos
+    INPUT_SHAPE = (VIEW_AREA * VIEW_AREA + 2, )  # 2 is more infos
     Predicts = [[], [], [], []]
     Pred_sep = []
 
@@ -560,12 +562,11 @@ if __name__ == "__main__":
     plt.figure(figsize=(20, 11))
     plt.subplot(412)
     plt.suptitle(f"{MODEL_NAME}\nStats")
-    plt.scatter(
-            np.array(stats['episode']),
-            stats['food_eaten'],
-            alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
-    )
-    plt.legend(loc=2)
+    for epis, eff1 in zip(stats['episode'], stats['food_eaten']):
+        alpha = np.interp(eff1, [np.min(stats['food_eaten']), np.max(stats['food_eaten'])], [0.01, 0.9])
+        plt.scatter(epis, eff1, color='r', marker='s', s=10, alpha=alpha)
+    plt.title("Food eaten")
+    # plt.legend(loc=2)
 
     plt.subplot(413)
     plt.scatter(stats['episode'], stats['moves'], label='Moves', color='b', marker='.', s=10, alpha=0.5)
@@ -577,10 +578,13 @@ if __name__ == "__main__":
 
     plt.subplot(411)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
-    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='.', s=10, alpha=0.5)
-    plt.xlabel("Epoch")
-    plt.legend(loc=2)
+    for epis, eff1 in zip(stats['episode'], effectiveness):
+        alpha = np.interp(eff1, [np.min(effectiveness), np.max(effectiveness)], [0.1, 0.9])
+        plt.scatter(epis, eff1, color='g', marker='.', s=10, alpha=alpha)
 
+    plt.title("Effectiveness")
+    plt.xlabel("Epoch")
+    plt.subplots_adjust(hspace=0.5)
     if SAVE_PICS:
         plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
 
