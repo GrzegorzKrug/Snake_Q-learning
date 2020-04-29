@@ -562,11 +562,12 @@ if __name__ == "__main__":
     plt.figure(figsize=(20, 11))
     plt.subplot(412)
     plt.suptitle(f"{MODEL_NAME}\nStats")
-    for epis, eff1 in zip(stats['episode'], stats['food_eaten']):
-        alpha = np.interp(eff1, [np.min(stats['food_eaten']), np.max(stats['food_eaten'])], [0.01, 0.9])
-        plt.scatter(epis, eff1, color='r', marker='s', s=10, alpha=alpha)
-    plt.title("Food eaten")
-    # plt.legend(loc=2)
+    plt.scatter(
+            np.array(stats['episode']),
+            stats['food_eaten'],
+            alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
+    )
+    plt.legend(loc=2)
 
     plt.subplot(413)
     plt.scatter(stats['episode'], stats['moves'], label='Moves', color='b', marker='.', s=10, alpha=0.5)
