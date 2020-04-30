@@ -628,7 +628,7 @@ if __name__ == "__main__":
 
     print(f"Run ended: {MODEL_NAME}")
     print(f"Time elapsed: {(time_end-time_start)/60:3.1f}m, "
-          f"{(time_end-time_start)/EPOCHS:3.1f} s per episode")
+          f"{(time_end-time_start)/(episode + 1):3.1f} s per episode")
 
     if not SAVE_PICS:
         plt.show()

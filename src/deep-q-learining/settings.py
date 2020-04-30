@@ -3,7 +3,7 @@ VIEW_AREA = VIEW_LEN * 2 + 1
 
 FOOD_COUNT = 1
 SIM_COUNT = 10
-EPOCHS = 500
+EPOCHS = 10000
 TIMEOUT = 200
 TRAIN_MAX_MIN_DURATION = 20
 
@@ -25,6 +25,7 @@ else:
     REPLAY_MEMORY_SIZE = 5 * full_game * SIM_COUNT  # 10 full games 3k each
 
 MODEL_NAME = f"Model29-FastLearn--View-{VIEW_LEN}--B_{MINIBATCH_SIZE}"
+MODEL_NAME = f"Model28-with_Direction--View-{VIEW_LEN}--B_{MINIBATCH_SIZE}"
 
 # Training params
 STATE_OFFSET = 0
