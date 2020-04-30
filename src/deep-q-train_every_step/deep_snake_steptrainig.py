@@ -292,7 +292,8 @@ class Agent:
     def __init__(self,
                  input_shape,
                  action_space,
-                 minibatch_size=128,
+                 min_batch_size=1000,
+                 max_batch_size=1000,
                  learining_rate=0.0001,
                  memory_size=10000):
 
@@ -300,7 +301,8 @@ class Agent:
         self.runtime_name = f"{dt.tm_mon:>02}-{dt.tm_mday:>02}--" \
                             f"{dt.tm_hour:>02}-{dt.tm_min:>02}-{dt.tm_sec:>02}"
 
-        self.minibatch_size = minibatch_size
+        self.min_batch_size = min_batch_size
+        self.max_batch_size = max_batch_size
         self.input_shape = input_shape
         self.action_space = action_space
         self.learning_rate = learining_rate
@@ -346,10 +348,16 @@ class Agent:
             return False
 
     def train(self):
-        if len(self.memory) < MINIBATCH_SIZE:
+        if len(self.memory) < self.min_batch_size:
             return None
+        elif len(self.memory) > self.max_batch_size:
+            train_data = random.sample(self.memory, self.max_batch_size)
+            print(f"Too much data, selecting from: {len(self.memory)} samples")
+        else:
+            train_data = list(self.memory)
 
-        train_data = random.sample(self.memory, MINIBATCH_SIZE)
+        self.memory.clear()
+
         Old_states = []
         New_states = []
         Rewards = []
@@ -381,10 +389,10 @@ class Agent:
 
 EPOCHS = settings.EPOCHS
 SIM_COUNT = settings.SIM_COUNT
-MINIBATCH_SIZE = settings.MINIBATCH_SIZE
 
 REPLAY_MEMORY_SIZE = settings.REPLAY_MEMORY_SIZE
-MIN_REPLAY_MEMORY_SIZE = settings.MIN_REPLAY_MEMORY_SIZE
+MIN_BATCH_SIZE = settings.MIN_BATCH_SIZE
+MAX_BATCH_SIZE = settings.MAX_BATCH_SIZE
 
 DISCOUNT = settings.DISCOUNT
 AGENT_LR = settings.AGENT_LR
@@ -433,7 +441,8 @@ if __name__ == "__main__":
             "moves": []
     }
 
-    agent = Agent(minibatch_size=MINIBATCH_SIZE,
+    agent = Agent(min_batch_size=MIN_BATCH_SIZE,
+                  max_batch_size=MAX_BATCH_SIZE,
                   input_shape=INPUT_SHAPE,
                   action_space=ACTIONS,
                   memory_size=REPLAY_MEMORY_SIZE,
@@ -450,11 +459,6 @@ if __name__ == "__main__":
 
     for episode in range(0, EPOCHS):
         Pred_sep.append(len(Predicts[0]))
-        if ALLOW_TRAIN:
-            agent.train()
-            if not episode % 1000 and episode > 0:
-                agent.save_model()
-                np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
 
         if not episode % SHOW_EVERY:
             render = True
@@ -497,9 +501,12 @@ if __name__ == "__main__":
         All_score = []
         All_steps = []
         while len(Games):
-            # if render and step > 1000:
-            #     render = False
-            #     print("Render stopped.")
+            if ALLOW_TRAIN:
+                agent.train()
+                if not episode % 100 and episode > 0:
+                    agent.save_model()
+                    np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
+
             step += 1
             Old_states = np.array(States)
 
