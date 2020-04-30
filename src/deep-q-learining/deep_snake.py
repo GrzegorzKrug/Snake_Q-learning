@@ -74,7 +74,7 @@ class Game:
         self.done = False
 
         if self.random_start:
-            self.head = [np.random.randint(0, self.width), np.random.randint(0, self.height)]
+            self.head = [np.random.randint(1, self.width-1), np.random.randint(1, self.height-1)]
         else:
             self.head = [self.width // 2, self.height//2]
 
