@@ -569,7 +569,7 @@ if __name__ == "__main__":
     plt.scatter(
             np.array(stats['episode']),
             stats['food_eaten'],
-            alpha=0.13, marker='s', edgecolors='m', label="Food_eaten"
+            alpha=0.2, marker='s', edgecolors='m', label="Food_eaten"
     )
     plt.legend(loc=2)
 
@@ -583,7 +583,7 @@ if __name__ == "__main__":
 
     plt.subplot(411)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
-    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='.', s=10, alpha=0.5)
+    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='s', s=10, alpha=0.5)
     plt.xlabel("Epoch")
     plt.subplots_adjust(hspace=0.3)
     plt.legend(loc=2)
