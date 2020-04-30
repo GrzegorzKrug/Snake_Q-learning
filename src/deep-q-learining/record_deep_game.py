@@ -1,4 +1,5 @@
 from deep_snake import Game, Agent
+
 import settings
 import numpy as np
 import os
@@ -10,7 +11,7 @@ if __name__ == "__main__":
     score = 0
     step = 0
 
-    path = f"{settings.MODEL_NAME}/game1"
+    path = f"{settings.MODEL_NAME}/game28_V-4_2000"
     if os.path.isdir(path):
         for file in os.listdir(path):
             os.remove(os.path.join(path, file))
@@ -21,7 +22,7 @@ if __name__ == "__main__":
     observation = game.reset()
 
     ACTIONS = 4
-    INPUT_SHAPE = (settings.VIEW_AREA * settings.VIEW_AREA,)
+    INPUT_SHAPE = (settings.VIEW_AREA * settings.VIEW_AREA + 2,)
     agent = Agent(input_shape=INPUT_SHAPE,
                   action_space=ACTIONS)
 

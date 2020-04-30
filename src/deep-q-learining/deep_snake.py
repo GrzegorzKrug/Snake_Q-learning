@@ -23,7 +23,7 @@ class Game:
     _count = 0
 
     def __init__(self, food_ammount=1, snake_len=3, width=30, height=30, free_moves=200, view_len=3,
-                 random_start=False, render=False):
+                 random_start=True, render=False):
         """"""
         self.render = render
         self.food_limit = food_ammount
@@ -73,7 +73,11 @@ class Game:
         self.time = 0
         self.done = False
 
-        self.head = [self.width // 2, self.height//2]
+        if self.random_start:
+            self.head = [np.random.randint(0, self.width), np.random.randint(0, self.height)]
+        else:
+            self.head = [self.width // 2, self.height//2]
+
         self.tail = deque([self.head] * self.initial_snake_len, maxlen=self.width * self.height + 1)
         self.snake_len = self.initial_snake_len
         self.Food = []
