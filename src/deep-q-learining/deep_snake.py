@@ -583,13 +583,11 @@ if __name__ == "__main__":
 
     plt.subplot(411)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
-    for epis, eff1 in zip(stats['episode'], effectiveness):
-        alpha = np.interp(eff1, [np.min(effectiveness), np.max(effectiveness)], [0.1, 0.9])
-        plt.scatter(epis, eff1, color='g', marker='.', s=10, alpha=alpha)
-
-    plt.title("Effectiveness")
+    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='.', s=10, alpha=0.5)
     plt.xlabel("Epoch")
-    plt.subplots_adjust(hspace=0.5)
+    plt.subplots_adjust(hspace=0.3)
+    plt.legend(loc=2)
+
     if SAVE_PICS:
         plt.savefig(f"{MODEL_NAME}/food-{agent.runtime_name}.png")
 
