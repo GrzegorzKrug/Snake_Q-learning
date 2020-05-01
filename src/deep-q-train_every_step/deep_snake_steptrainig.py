@@ -10,7 +10,7 @@ import keras
 import time
 import os
 
-from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input
+from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input, Concatenate
 from keras.models import Model, load_model, Sequential
 from keras.utils import plot_model
 from keras.optimizers import Adam

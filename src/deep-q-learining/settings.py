@@ -12,7 +12,7 @@ MINIBATCH_SIZE = 200
 MIN_REPLAY_MEMORY_SIZE = MINIBATCH_SIZE
 
 DISCOUNT = 0.9
-AGENT_LR = 1e-5
+AGENT_LR = 1e-3
 ALLOW_TRAIN = True
 TRAIN_ALL_SAMPLES = False
 
@@ -25,7 +25,8 @@ else:
     REPLAY_MEMORY_SIZE = 5 * full_game * SIM_COUNT  # 10 full games 3k each
 
 MODEL_NAME = f"Model29-FastLearn--View-{VIEW_LEN}--B_{MINIBATCH_SIZE}"
-MODEL_NAME = f"Model28-with_Direction--View-{VIEW_LEN}--B_{MINIBATCH_SIZE}"
+# MODEL_NAME = f"Model28-with_Direction--View-{VIEW_LEN}--B_{MINIBATCH_SIZE}"
+MODEL_NAME = f"Model30-with_Direction--View-{VIEW_LEN}--B_{MINIBATCH_SIZE}"
 
 # Training params
 STATE_OFFSET = 0
