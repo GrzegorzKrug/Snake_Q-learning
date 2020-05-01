@@ -99,8 +99,8 @@ class Game:
             if new_food_pos == self.head:
                 # Repeat while with new food
                 continue
-            for food in self.Food:
-                if food == new_food_pos:
+            for tail in self.tail:
+                if tail == new_food_pos:
                     valid_to_brake = False
                     break
             if valid_to_brake:
@@ -347,7 +347,7 @@ class Agent:
         layer3 = Dense(64, activation='relu')(merge_layer)
         output = Dense(self.action_space, activation='linear')(layer3)
 
-        model = Model(inputs=[input_area, input_direction], output=output)
+        model = Model(inputs=[input_area, input_direction], outputs=output)
 
         plot_model(model, f"{MODEL_NAME}/model.png")
         with open(f"{MODEL_NAME}/model_summary.txt", 'w') as file:
@@ -376,8 +376,12 @@ class Agent:
 
     def load_model(self):
         if os.path.isfile(f"{MODEL_NAME}/model"):
-            self.model = load_model(f"{MODEL_NAME}/model")
-            return True
+            while True:
+                try:
+                    self.model = load_model(f"{MODEL_NAME}/model")
+                    return True
+                except OSError:
+                    time.sleep(0.2)
         else:
             return False
 
@@ -561,74 +565,77 @@ def training():
         All_score = []
         All_steps = []
         while len(Games):
-            if settings.STEP_TRAINING and ALLOW_TRAIN:
-                agent.train()
-                if not episode % 100 and episode > 0:
-                    agent.save_model()
-                    np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
+            try:
+                if settings.STEP_TRAINING and ALLOW_TRAIN:
+                    agent.train()
+                    if not episode % 100 and episode > 0:
+                        agent.save_model()
+                        np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
 
-            step += 1
-            Old_states = np.array(States)
+                step += 1
+                Old_states = np.array(States)
 
-            if eps > np.random.random():
-                Actions = [game.random_action() for game in Games]
-            else:
-
-                if settings.DUAL_INPUT:
-                    old_view_area = []
-                    old_directions = []
-                    for _old_state in Old_states:
-                        old_view_area.append(_old_state[0])
-                        old_directions.append(_old_state[1])
-
-                    Predictions = agent.model.predict([old_view_area, old_directions])
+                if eps > np.random.random():
+                    Actions = [game.random_action() for game in Games]
                 else:
-                    # Old_states = Old_states.reshape(-1, *INPUT_SHAPE)
-                    Predictions = agent.model.predict(Old_states)
 
-                Actions = np.argmax(Predictions, axis=1)
-                if settings.PLOT_FIRST_QS:
-                    Predicts[0].append(Actions[0])
-                    Predicts[1].append(Predictions[0][Actions[0]])
-                elif PLOT_ALL_QS:
-                    for predict in Predictions:
-                        Predicts[0].append(predict[0])
-                        Predicts[1].append(predict[1])
-                        Predicts[2].append(predict[2])
-                        Predicts[3].append(predict[3])
+                    if settings.DUAL_INPUT:
+                        old_view_area = []
+                        old_directions = []
+                        for _old_state in Old_states:
+                            old_view_area.append(_old_state[0])
+                            old_directions.append(_old_state[1])
 
-            States = []
-            assert len(Games) == len(Dones)
-            for g_index, game in enumerate(Games):
-                state, reward, done = game.step(action=Actions[g_index])
-                agent.update_memory((Old_states[g_index], state, reward, Actions[g_index], done))
-                Scores[g_index] += reward
-                Dones[g_index] = done
-                States.append(state)
+                        Predictions = agent.model.predict([old_view_area, old_directions])
+                    else:
+                        # Old_states = Old_states.reshape(-1, *INPUT_SHAPE)
+                        Predictions = agent.model.predict(Old_states)
 
-            if render:
-                Games[0].draw()
-                time.sleep(RENDER_DELAY)
+                    Actions = np.argmax(Predictions, axis=1)
+                    if settings.PLOT_FIRST_QS:
+                        Predicts[0].append(Actions[0])
+                        Predicts[1].append(Predictions[0][Actions[0]])
+                    elif PLOT_ALL_QS:
+                        for predict in Predictions:
+                            Predicts[0].append(predict[0])
+                            Predicts[1].append(predict[1])
+                            Predicts[2].append(predict[2])
+                            Predicts[3].append(predict[3])
 
-            for ind_d in range(len(Games) - 1, -1, -1):
-                if Dones[ind_d]:
-                    if ind_d == 0 and render:
-                        render = False
-                        pygame.quit()
+                States = []
+                assert len(Games) == len(Dones)
+                for g_index, game in enumerate(Games):
+                    state, reward, done = game.step(action=Actions[g_index])
+                    agent.update_memory((Old_states[g_index], state, reward, Actions[g_index], done))
+                    Scores[g_index] += reward
+                    Dones[g_index] = done
+                    States.append(state)
 
-                    All_score.append(Scores[ind_d])
-                    All_steps.append(step)
+                if render:
+                    Games[0].draw()
+                    time.sleep(RENDER_DELAY)
 
-                    stats['episode'].append(episode + episode_offset)
-                    stats['eps'].append(eps)
-                    stats['score'].append(Scores[ind_d])
-                    stats['food_eaten'].append(Games[ind_d].score)
-                    stats['moves'].append(step)
+                for ind_d in range(len(Games) - 1, -1, -1):
+                    if Dones[ind_d]:
+                        if ind_d == 0 and render:
+                            render = False
+                            pygame.quit()
 
-                    Scores.pop(ind_d)
-                    Games.pop(ind_d)
-                    States.pop(ind_d)
-                    Dones.pop(ind_d)
+                        All_score.append(Scores[ind_d])
+                        All_steps.append(step)
+
+                        stats['episode'].append(episode + episode_offset)
+                        stats['eps'].append(eps)
+                        stats['score'].append(Scores[ind_d])
+                        stats['food_eaten'].append(Games[ind_d].score)
+                        stats['moves'].append(step)
+
+                        Scores.pop(ind_d)
+                        Games.pop(ind_d)
+                        States.pop(ind_d)
+                        Dones.pop(ind_d)
+            except KeyboardInterrupt:
+                emergency_break = True
 
         print(f"Step-Ep[{episode + episode_offset:^7} of {EPOCHS + episode_offset}], "
               f"Eps: {eps:>1.3f} "
@@ -676,7 +683,7 @@ def plot_results():
     plt.subplot(411)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
     plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='s', s=10, alpha=0.5)
-    plt.plot(stats['episode'], moving_average(effectiveness), label='Average', linewidth=2)
+    plt.plot(stats['episode'], moving_average(effectiveness), label='Average', linewidth=3)
     plt.xlabel("Epoch")
     plt.subplots_adjust(hspace=0.3)
     plt.legend(loc=2)
@@ -689,12 +696,12 @@ def plot_results():
             alpha=0.2, marker='s', c='m', s=10, label="Food_eaten"
     )
 
-    plt.plot(stats['episode'], moving_average(stats['food_eaten']), label='Average', linewidth=2)
+    plt.plot(stats['episode'], moving_average(stats['food_eaten']), label='Average', linewidth=3)
     plt.legend(loc=2)
 
     plt.subplot(413)
     plt.scatter(stats['episode'], stats['moves'], label='Moves', color='b', marker='.', s=10, alpha=0.5)
-    plt.plot(stats['episode'], moving_average(stats['moves']), label='Average', linewidth=2)
+    plt.plot(stats['episode'], moving_average(stats['moves']), label='Average', linewidth=3)
     plt.legend(loc=2)
 
     plt.subplot(414)

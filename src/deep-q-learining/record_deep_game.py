@@ -12,12 +12,13 @@ if __name__ == "__main__":
     step = 0
     game_name = "game1"
     path = f"{settings.MODEL_NAME}/{game_name}"
+    num = 1
+    while os.path.isdir(path):
+        num += 1
+        game_name = f"game{num}"
+        path = f"{settings.MODEL_NAME}/{game_name}"
 
     os.makedirs(path)
-    if os.path.isdir(path):
-        for file in os.listdir(path):
-            os.remove(os.path.join(path, file))
-        os.removedirs(path)
 
     game = Game(food_ammount=settings.FOOD_COUNT, render=True, view_len=settings.VIEW_LEN, free_moves=settings.TIMEOUT)
     observation = game.reset()
