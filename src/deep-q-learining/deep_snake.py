@@ -319,7 +319,7 @@ class Agent:
         load_success = self.load_model()
 
         # Bind train command
-        self.train = self._dual_train if settings.DUAL_INPUT else self._normal_train
+        self._train = self._dual_train if settings.DUAL_INPUT else self._normal_train
 
         if load_success:
             print(f"Loading model: {MODEL_NAME}")
@@ -381,18 +381,23 @@ class Agent:
         else:
             return False
 
-    def _normal_train(self):
+    def train(self):
         if len(self.memory) < self.min_batch_size:
             return None
-        elif len(self.memory) > self.max_batch_size:
+        elif settings.TRAIN_ALL_SAMPLES:
+            train_data = list(self.memory)
+        elif len(self.memory) >= self.max_batch_size:
             train_data = random.sample(self.memory, self.max_batch_size)
-            print(f"Too much data, selecting from: {len(self.memory)} samples")
+            # print(f"Too much data, selecting from: {len(self.memory)} samples")
         else:
             train_data = list(self.memory)
 
-        if settings.STEP_TRAINING:
+        if settings.STEP_TRAINING or settings.TRAIN_ALL_SAMPLES:
             self.memory.clear()
 
+        self._train(train_data)
+
+    def _normal_train(self, train_data):
         Old_states = []
         New_states = []
         Rewards = []
@@ -421,18 +426,7 @@ class Agent:
         self.model.fit(Old_states, old_qs,
                        verbose=0, shuffle=False, epochs=1)
 
-    def _dual_train(self):
-        if len(self.memory) < self.min_batch_size:
-            return None
-        elif len(self.memory) > self.max_batch_size:
-            train_data = random.sample(self.memory, self.max_batch_size)
-            print(f"Too much data, selecting from: {len(self.memory)} samples")
-        else:
-            train_data = list(self.memory)
-
-        if settings.STEP_TRAINING:
-            self.memory.clear()
-
+    def _dual_train(self, train_data):
         Old_states = []
         New_states = []
         Rewards = []

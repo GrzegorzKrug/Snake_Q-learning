@@ -3,7 +3,7 @@ VIEW_AREA = VIEW_LEN * 2 + 1
 
 FOOD_COUNT = 1
 SIM_COUNT = 10
-EPOCHS = 1000
+EPOCHS = 10000
 TIMEOUT = 200
 TRAIN_MAX_MIN_DURATION = 10
 
@@ -22,10 +22,7 @@ STEP_TRAINING = True
 DUAL_INPUT = True
 
 TRAIN_ALL_SAMPLES = False  # Only in single input
-if TRAIN_ALL_SAMPLES:
-    REPLAY_MEMORY_SIZE = MIN_BATCH_SIZE
-else:
-    REPLAY_MEMORY_SIZE = 5 * full_game * SIM_COUNT  # 10 full games 3k each
+REPLAY_MEMORY_SIZE = 5 * full_game * SIM_COUNT  # 10 full games 3k each
 
 
 model = "StepModel" if STEP_TRAINING else "EpochModel"
