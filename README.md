@@ -1,3 +1,8 @@
+# Table of Contents
+1. [Snake inputs](#input)
+2. [Q-learning results](#qlearning)
+3. [Deep Q-learning results](#deepqlearning)
+
 # About Snake Q-learning
 Learning repository.
 Target is to implement q-learning in different environment than gym-ai.
@@ -19,17 +24,18 @@ Python==3.7.6
 - [ ] Use deep q-learning
     - [ ] input whole area ahead
   
-## Snake inputs (vision)
+## Snake inputs <a name="input"/>
+#### Smell
 
 Snake has knowledge of relative position to head. It is combination of `x` and `y`
 
 ![Food visioin](./src/q-learning/food_vision.png)
 
-Collision detection
+#### View area
 
 ![Snake vision](./src/q-learning/snake_vision.png)
   
-## Q-learning results
+## Q-learning results <a name="qlearning"/>
 
 #### Score
 
@@ -59,4 +65,7 @@ Snake 2 - faster learning parameters
 
 [![Snake 2](http://img.youtube.com/vi/Wv1Ap2t7LjI/0.jpg)](
 https://www.youtube.com/watch?v=Wv1Ap2t7LjI)
-#
+
+
+## Deep Q-learning  results <a name="deepqlearning"/>
+pass
