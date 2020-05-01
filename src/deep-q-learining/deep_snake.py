@@ -650,33 +650,55 @@ def training():
         np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + 1 + episode_offset)
 
 
+def moving_average(array, window_size=None):
+    size = len(array)
+    if not window_size or window_size and size > window_size:
+        window_size = size // 10
+
+    output = []
+    for sample_num, arr_element in enumerate(array):
+        arr_slice = array[sample_num-window_size:sample_num]
+        if len(arr_slice) < window_size:
+            output.append(0)
+        else:
+            output.append(
+                    np.mean(arr_slice)
+            )
+    return output
+
+
 def plot_results():
     print("Plotting data now...")
     pygame.quit()
     style.use('ggplot')
     plt.figure(figsize=(20, 11))
+
+    plt.subplot(411)
+    effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
+    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='s', s=10, alpha=0.5)
+    plt.plot(stats['episode'], moving_average(effectiveness), label='Average')
+    plt.xlabel("Epoch")
+    plt.subplots_adjust(hspace=0.3)
+    plt.legend(loc=2)
+
     plt.subplot(412)
     plt.suptitle(f"{MODEL_NAME}\nStats")
     plt.scatter(
             np.array(stats['episode']),
             stats['food_eaten'],
-            alpha=0.2, marker='s', edgecolors='m', label="Food_eaten"
+            alpha=0.2, marker='s', c='m', s=10, label="Food_eaten"
     )
+
+    plt.plot(stats['episode'], moving_average(stats['food_eaten']), label='Average')
     plt.legend(loc=2)
 
     plt.subplot(413)
     plt.scatter(stats['episode'], stats['moves'], label='Moves', color='b', marker='.', s=10, alpha=0.5)
+    plt.plot(stats['episode'], moving_average(stats['moves']), label='Average')
     plt.legend(loc=2)
 
     plt.subplot(414)
     plt.scatter(stats['episode'], stats['eps'], label='Epsilon', color='k', marker='.', s=10, alpha=1)
-    plt.legend(loc=2)
-
-    plt.subplot(411)
-    effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
-    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='s', s=10, alpha=0.5)
-    plt.xlabel("Epoch")
-    plt.subplots_adjust(hspace=0.3)
     plt.legend(loc=2)
 
     if SAVE_PICS:
