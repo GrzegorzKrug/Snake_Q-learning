@@ -10,7 +10,7 @@ import keras
 import time
 import os
 
-from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input
+from keras.layers import Dense, Conv2D, MaxPooling2D, Dropout, Flatten, Input, concatenate
 from keras.models import Model, load_model, Sequential
 from keras.utils import plot_model
 from keras.optimizers import Adam
@@ -47,7 +47,7 @@ class Game:
         self.done = False
 
         self.head = [0, 0]
-        self.tail = deque([self.head] * self.initial_snake_len, maxlen=self.width*self.height+1)
+        self.tail = deque([self.head] * self.initial_snake_len, maxlen=self.width * self.height + 1)
         self.snake_len = self.initial_snake_len
         self.Food = []
         self.fill_food()
@@ -74,9 +74,9 @@ class Game:
         self.done = False
 
         if self.random_start:
-            self.head = [np.random.randint(1, self.width-1), np.random.randint(1, self.height-1)]
+            self.head = [np.random.randint(1, self.width - 1), np.random.randint(1, self.height - 1)]
         else:
-            self.head = [self.width // 2, self.height//2]
+            self.head = [self.width // 2, self.height // 2]
 
         self.tail = deque([self.head] * self.initial_snake_len, maxlen=self.width * self.height + 1)
         self.snake_len = self.initial_snake_len
@@ -103,7 +103,8 @@ class Game:
                 if food == new_food_pos:
                     valid_to_brake = False
                     break
-            if valid_to_brake: break
+            if valid_to_brake:
+                break
         self.Food.append(new_food_pos)
 
     def observation(self):
@@ -130,7 +131,11 @@ class Game:
 
         area = (area / 2).ravel()
         food_relative_pos = (np.array(self.head) - np.array(self.Food[0])) / np.max(self.size)
-        output = np.concatenate([area, food_relative_pos])
+
+        if settings.DUAL_INPUT:
+            output = (area, food_relative_pos)
+        else:
+            output = np.concatenate([area, food_relative_pos])
         return output
 
     def random_action(self):
@@ -263,7 +268,9 @@ class Game:
         # self.screen.fill((40, 40, 45))
 
         pygame.draw.rect(self.screen, (40, 60, 45),
-                         ((self.head[0] - self.view_len) * self.box_size, (self.head[1] - self.view_len) * self.box_size, self.area_len * self.box_size, self.area_len * self.box_size))
+                         (
+                         (self.head[0] - self.view_len) * self.box_size, (self.head[1] - self.view_len) * self.box_size,
+                         self.area_len * self.box_size, self.area_len * self.box_size))
 
         for tail in self.tail:
             pygame.draw.rect(self.screen, (35, 120, 50),
@@ -274,7 +281,8 @@ class Game:
                           self.box_size))
 
         for food in self.Food:
-            pygame.draw.rect(self.screen, (0, 255, 0), (food[0] * self.box_size, food[1] * self.box_size, self.box_size, self.box_size))
+            pygame.draw.rect(self.screen, (0, 255, 0),
+                             (food[0] * self.box_size, food[1] * self.box_size, self.box_size, self.box_size))
 
         self.display_score()
         pygame.display.update()
@@ -292,7 +300,9 @@ class Agent:
     def __init__(self,
                  input_shape,
                  action_space,
-                 minibatch_size=128,
+                 dual_input=False,
+                 min_batch_size=1000,
+                 max_batch_size=1000,
                  learining_rate=0.0001,
                  memory_size=10000):
 
@@ -300,26 +310,52 @@ class Agent:
         self.runtime_name = f"{dt.tm_mon:>02}-{dt.tm_mday:>02}--" \
                             f"{dt.tm_hour:>02}-{dt.tm_min:>02}-{dt.tm_sec:>02}"
 
-        self.minibatch_size = minibatch_size
+        self.min_batch_size = min_batch_size
+        self.max_batch_size = max_batch_size
         self.input_shape = input_shape
         self.action_space = action_space
         self.learning_rate = learining_rate
         self.memory = deque(maxlen=memory_size)
         load_success = self.load_model()
+
+        # Bind train command
+        self.train = self._dual_train if settings.DUAL_INPUT else self._normal_train
+
         if load_success:
             print(f"Loading model: {MODEL_NAME}")
         else:
             print(f"New model: {MODEL_NAME}")
-            self.model = self.create_model()
+            if dual_input:
+                self.model = self.create_dual_model()
+            else:
+                self.model = self.create_normal_model()
 
-        backend.set_value(self.model.optimizer.lr, self.learning_rate)
-        # self.model.optimizer.lr = self.learning_rate
         self.model.compile(optimizer=Adam(lr=self.learning_rate),
                            loss='mse',
                            metrics=['accuracy'])
+        backend.set_value(self.model.optimizer.lr, self.learning_rate)
         self.model.summary()
 
-    def create_model(self):
+    def create_dual_model(self):
+        input_area = Input(shape=(self.input_shape[0]))
+        layer1a = Dense(64, activation='relu')(input_area)
+
+        input_direction = Input(shape=(self.input_shape[1]))
+        layer2a = Dense(32, activation='relu')(input_direction)
+        merge_layer = concatenate([layer1a, layer2a], axis=-1)
+
+        layer3 = Dense(64, activation='relu')(merge_layer)
+        output = Dense(self.action_space, activation='linear')(layer3)
+
+        model = Model(inputs=[input_area, input_direction], output=output)
+
+        plot_model(model, f"{MODEL_NAME}/model.png")
+        with open(f"{MODEL_NAME}/model_summary.txt", 'w') as file:
+            model.summary(print_fn=lambda x: file.write(x + '\n'))
+
+        return model
+
+    def create_normal_model(self):
         model = Sequential()
         model.add(Dense(128, input_shape=self.input_shape, activation='relu'))
         model.add(Dropout(0.2))
@@ -336,7 +372,6 @@ class Agent:
         self.memory.append(state)
 
     def save_model(self):
-        # self.model.save_weights(f"{MODEL_NAME}/model", overwrite=True)
         self.model.save(f"{MODEL_NAME}/model")
 
     def load_model(self):
@@ -346,11 +381,18 @@ class Agent:
         else:
             return False
 
-    def train(self):
-        if len(self.memory) < MINIBATCH_SIZE:
+    def _normal_train(self):
+        if len(self.memory) < self.min_batch_size:
             return None
+        elif len(self.memory) > self.max_batch_size:
+            train_data = random.sample(self.memory, self.max_batch_size)
+            print(f"Too much data, selecting from: {len(self.memory)} samples")
+        else:
+            train_data = list(self.memory)
 
-        train_data = random.sample(self.memory, MINIBATCH_SIZE)
+        if settings.STEP_TRAINING:
+            self.memory.clear()
+
         Old_states = []
         New_states = []
         Rewards = []
@@ -379,13 +421,65 @@ class Agent:
         self.model.fit(Old_states, old_qs,
                        verbose=0, shuffle=False, epochs=1)
 
+    def _dual_train(self):
+        if len(self.memory) < self.min_batch_size:
+            return None
+        elif len(self.memory) > self.max_batch_size:
+            train_data = random.sample(self.memory, self.max_batch_size)
+            print(f"Too much data, selecting from: {len(self.memory)} samples")
+        else:
+            train_data = list(self.memory)
+
+        if settings.STEP_TRAINING:
+            self.memory.clear()
+
+        Old_states = []
+        New_states = []
+        Rewards = []
+        Dones = []
+        Actions = []
+
+        for old_state, new_state, reward, action, done in train_data:
+            Old_states.append(old_state)
+            New_states.append(new_state)
+            Actions.append(action)
+            Rewards.append(reward)
+            Dones.append(done)
+
+        Old_states = np.array(Old_states)
+        New_states = np.array(New_states)
+
+        old_view_area = []
+        old_direction = []
+        new_view_area = []
+        new_direction = []
+
+        for _old_state, _new_state in zip(Old_states, New_states):
+            old_view_area.append(_old_state[0])
+            old_direction.append(_old_state[1])
+            new_view_area.append(_new_state[0])
+            new_direction.append(_new_state[1])
+
+        old_qs = self.model.predict([old_view_area, old_direction])
+        new_qs = self.model.predict([new_view_area, new_direction])
+
+        for old_q, new_q, rew, act, done in zip(old_qs, new_qs, Rewards, Actions, Dones):
+            if done:
+                old_q[act] = rew
+            else:
+                future_best_val = np.max(new_q)
+                old_q[act] = rew + DISCOUNT * future_best_val
+
+        self.model.fit([old_view_area, old_direction], old_qs,
+                       verbose=0, shuffle=False, epochs=1)
+
 
 EPOCHS = settings.EPOCHS
 SIM_COUNT = settings.SIM_COUNT
-MINIBATCH_SIZE = settings.MINIBATCH_SIZE
 
 REPLAY_MEMORY_SIZE = settings.REPLAY_MEMORY_SIZE
-MIN_REPLAY_MEMORY_SIZE = settings.MIN_REPLAY_MEMORY_SIZE
+MIN_BATCH_SIZE = settings.MIN_BATCH_SIZE
+MAX_BATCH_SIZE = settings.MAX_BATCH_SIZE
 
 DISCOUNT = settings.DISCOUNT
 AGENT_LR = settings.AGENT_LR
@@ -410,36 +504,8 @@ SHOW_LAST = settings.SHOW_LAST
 PLOT_ALL_QS = settings.PLOT_ALL_QS
 COMBINE_QS = settings.COMBINE_QS
 
-if __name__ == "__main__":
-    config = tf.compat.v1.ConfigProto()
-    config.gpu_options.allow_growth = False
-    config.gpu_options.per_process_gpu_memory_fraction = 0.3
-    sess = tf.compat.v1.Session(config=config)
 
-    os.makedirs(MODEL_NAME, exist_ok=True)
-
-    "Environment"
-    ACTIONS = 4  # Turn left, right or none
-    VIEW_AREA = settings.VIEW_AREA
-    VIEW_LEN = settings.VIEW_LEN
-    INPUT_SHAPE = (VIEW_AREA * VIEW_AREA + 2, )  # 2 is more infos
-    Predicts = [[], [], [], []]
-    Pred_sep = []
-
-    stats = {
-            "episode": [],
-            "eps": [],
-            "score": [],
-            "food_eaten": [],
-            "moves": []
-    }
-
-    agent = Agent(minibatch_size=MINIBATCH_SIZE,
-                  input_shape=INPUT_SHAPE,
-                  action_space=ACTIONS,
-                  memory_size=REPLAY_MEMORY_SIZE,
-                  learining_rate=AGENT_LR)
-
+def training():
     try:
         episode_offset = np.load(f"{MODEL_NAME}/last-episode-num.npy", allow_pickle=True)
     except FileNotFoundError:
@@ -450,12 +516,13 @@ if __name__ == "__main__":
     emergency_break = False
 
     for episode in range(0, EPOCHS):
-        Pred_sep.append(len(Predicts[0]))
-        if ALLOW_TRAIN:
+        if not settings.STEP_TRAINING and ALLOW_TRAIN:
             agent.train()
-            if not episode % 1000 and episode > 0:
+            if not episode % 100 and episode > 0:
                 agent.save_model()
                 np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
+
+        Pred_sep.append(len(Predicts[0]))
 
         if not episode % SHOW_EVERY:
             render = True
@@ -485,9 +552,11 @@ if __name__ == "__main__":
         States = []
         for loop_ind in range(SIM_COUNT):
             if loop_ind == 0:
-                game = Game(food_ammount=settings.FOOD_COUNT, render=render, view_len=VIEW_LEN, free_moves=settings.TIMEOUT)
+                game = Game(food_ammount=settings.FOOD_COUNT, render=render, view_len=VIEW_LEN,
+                            free_moves=settings.TIMEOUT)
             else:
-                game = Game(food_ammount=settings.FOOD_COUNT, render=False, view_len=VIEW_LEN, free_moves=settings.TIMEOUT)
+                game = Game(food_ammount=settings.FOOD_COUNT, render=False, view_len=VIEW_LEN,
+                            free_moves=settings.TIMEOUT)
             state = game.reset()
             Games.append(game)
             States.append(state)
@@ -498,16 +567,31 @@ if __name__ == "__main__":
         All_score = []
         All_steps = []
         while len(Games):
-            # if render and step > 1000:
-            #     render = False
-            #     print("Render stopped.")
+            if settings.STEP_TRAINING and ALLOW_TRAIN:
+                agent.train()
+                if not episode % 100 and episode > 0:
+                    agent.save_model()
+                    np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
+
             step += 1
             Old_states = np.array(States)
 
             if eps > np.random.random():
                 Actions = [game.random_action() for game in Games]
             else:
-                Predictions = agent.model.predict(Old_states)
+
+                if settings.DUAL_INPUT:
+                    old_view_area = []
+                    old_directions = []
+                    for _old_state in Old_states:
+                        old_view_area.append(_old_state[0])
+                        old_directions.append(_old_state[1])
+
+                    Predictions = agent.model.predict([old_view_area, old_directions])
+                else:
+                    # Old_states = Old_states.reshape(-1, *INPUT_SHAPE)
+                    Predictions = agent.model.predict(Old_states)
+
                 Actions = np.argmax(Predictions, axis=1)
                 if settings.PLOT_FIRST_QS:
                     Predicts[0].append(Actions[0])
@@ -541,7 +625,7 @@ if __name__ == "__main__":
                     All_score.append(Scores[ind_d])
                     All_steps.append(step)
 
-                    stats['episode'].append(episode+episode_offset)
+                    stats['episode'].append(episode + episode_offset)
                     stats['eps'].append(eps)
                     stats['score'].append(Scores[ind_d])
                     stats['food_eaten'].append(Games[ind_d].score)
@@ -552,7 +636,7 @@ if __name__ == "__main__":
                     States.pop(ind_d)
                     Dones.pop(ind_d)
 
-        print(f"Ep[{episode+episode_offset:^7} of {EPOCHS+episode_offset}], "
+        print(f"Step-Ep[{episode + episode_offset:^7} of {EPOCHS + episode_offset}], "
               f"Eps: {eps:>1.3f} "
               f"avg-score: {np.mean(All_score):^8.1f}, "
               f"avg-steps: {np.mean(All_steps):^7.1f}"
@@ -563,6 +647,16 @@ if __name__ == "__main__":
         elif settings.TRAIN_MAX_MIN_DURATION and (time_end - time_start) / 60 > settings.TRAIN_MAX_MIN_DURATION:
             emergency_break = True
 
+    print(f"Run ended: {MODEL_NAME}")
+    print(f"Step-Training time elapsed: {(time_end - time_start) / 60:3.1f}m, "
+          f"{(time_end - time_start) / (episode + 1):3.1f} s per episode")
+
+    if ALLOW_TRAIN:
+        agent.save_model()
+        np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + 1 + episode_offset)
+
+
+def plot_results():
     print("Plotting data now...")
     pygame.quit()
     style.use('ggplot')
@@ -596,8 +690,6 @@ if __name__ == "__main__":
 
     # BIG PLOT
     plt.figure(figsize=(20, 11))
-    samples = []
-    colors = []
     plt.scatter(range(len(Predicts[0])), Predicts[0], c='r', label='up', alpha=0.2, s=3, marker='o')
     plt.scatter(range(len(Predicts[1])), Predicts[1], c='g', label='right', alpha=0.2, s=3, marker='o')
     plt.scatter(range(len(Predicts[2])), Predicts[2], c='m', label='down', alpha=0.2, s=3, marker='o')
@@ -616,17 +708,48 @@ if __name__ == "__main__":
     if SAVE_PICS:
         plt.savefig(f"{MODEL_NAME}/Qs-{agent.runtime_name}.png")
 
-    if ALLOW_TRAIN:
-        agent.save_model()
-        np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + 1 + episode_offset)
-
-    print(f"Run ended: {MODEL_NAME}")
-    print(f"Time elapsed: {(time_end-time_start)/60:3.1f}m, "
-          f"{(time_end-time_start)/(episode + 1):3.1f} s per episode")
-
     if not SAVE_PICS:
         plt.show()
     # train - clear memory
     if settings.SOUND_ALERT:
         os.system("play -nq -t alsa synth 0.2 sine 150")
 
+
+if __name__ == "__main__":
+    config = tf.compat.v1.ConfigProto()
+    config.gpu_options.allow_growth = False
+    config.gpu_options.per_process_gpu_memory_fraction = 0.3
+    sess = tf.compat.v1.Session(config=config)
+
+    os.makedirs(MODEL_NAME, exist_ok=True)
+
+    "Environment"
+    ACTIONS = 4  # Turn left, right or none
+    VIEW_AREA = settings.VIEW_AREA
+    VIEW_LEN = settings.VIEW_LEN
+
+    if settings.DUAL_INPUT:
+        INPUT_SHAPE = [(VIEW_AREA * VIEW_AREA,), (2,)]  # 2 is more infos
+    else:
+        INPUT_SHAPE = (VIEW_AREA * VIEW_AREA + 2, )  # 2 is direciton
+
+    Predicts = [[], [], [], []]
+    Pred_sep = []
+
+    stats = {
+            "episode": [],
+            "eps": [],
+            "score": [],
+            "food_eaten": [],
+            "moves": []}
+
+    agent = Agent(min_batch_size=MIN_BATCH_SIZE,
+                  max_batch_size=MAX_BATCH_SIZE,
+                  input_shape=INPUT_SHAPE,
+                  action_space=ACTIONS,
+                  memory_size=REPLAY_MEMORY_SIZE,
+                  learining_rate=AGENT_LR,
+                  dual_input=settings.DUAL_INPUT)
+
+    training()
+    plot_results()

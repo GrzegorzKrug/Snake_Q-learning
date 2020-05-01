@@ -3,9 +3,9 @@ VIEW_AREA = VIEW_LEN * 2 + 1
 
 FOOD_COUNT = 1
 SIM_COUNT = 10
-EPOCHS = 10000
+EPOCHS = 1000
 TIMEOUT = 200
-TRAIN_MAX_MIN_DURATION = 20
+TRAIN_MAX_MIN_DURATION = 10
 
 
 SHOW_EVERY = 500
@@ -13,23 +13,23 @@ full_game = 1000
 RENDER_DELAY = 0.02
 
 REPLAY_MEMORY_SIZE = 10000
-MIN_BATCH_SIZE = 200
+MIN_BATCH_SIZE = 500
 MAX_BATCH_SIZE = 2000
 
 # Training method
 ALLOW_TRAIN = True
 STEP_TRAINING = True
-TRAIN_ALL_SAMPLES = False
+DUAL_INPUT = True
 
+TRAIN_ALL_SAMPLES = False  # Only in single input
 if TRAIN_ALL_SAMPLES:
     REPLAY_MEMORY_SIZE = MIN_BATCH_SIZE
 else:
     REPLAY_MEMORY_SIZE = 5 * full_game * SIM_COUNT  # 10 full games 3k each
 
-model = "StepModel" if STEP_TRAINING else "EpochModel"
-DUAL_INPUT = True
 
-MODEL_NAME = f"{model}-30-StepTraining--View-{VIEW_LEN}--DI_{DUAL_INPUT}--MB_{MIN_BATCH_SIZE}"
+model = "StepModel" if STEP_TRAINING else "EpochModel"
+MODEL_NAME = f"{model}-30--View_{VIEW_LEN}--DI_{DUAL_INPUT}--MB_{MIN_BATCH_SIZE}"
 
 # Training params
 DISCOUNT = 0.9
