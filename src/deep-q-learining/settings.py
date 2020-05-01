@@ -5,7 +5,7 @@ FOOD_COUNT = 1
 SIM_COUNT = 10
 EPOCHS = 10000
 TIMEOUT = 200
-TRAIN_MAX_MIN_DURATION = 30
+TRAIN_MAX_MIN_DURATION = 5
 
 
 SHOW_EVERY = 500
@@ -25,7 +25,7 @@ TRAIN_ALL_SAMPLES = False  # Only in single input
 
 
 model = "StepModel" if STEP_TRAINING else "EpochModel"
-MODEL_NAME = f"{model}-30--View_{VIEW_LEN}--DI_{DUAL_INPUT}--MB_{MIN_BATCH_SIZE}"
+MODEL_NAME = f"{model}-31--View_{VIEW_LEN}--DI_{DUAL_INPUT}--MB_{MIN_BATCH_SIZE}"
 
 # Training params
 DISCOUNT = 0.9

@@ -41,6 +41,7 @@ class Game:
         self.size = self.width * self.box_size, self.height * self.box_size
 
         self.score = 0
+        self.food_eaten = 0
         self.direction = 0
         self.moves_left = self.free_moves
         self.time = 0
@@ -68,6 +69,7 @@ class Game:
 
     def _reset(self):
         self.score = 0
+        self.food_eaten = 0
         self.direction = 0
         self.moves_left = self.free_moves
         self.time = 0
@@ -249,15 +251,17 @@ class Game:
 
         if food:
             self.moves_left = self.free_moves
-            self.score += 1
+            self.food_eaten += 1
 
         if done:
             self.done = done
+
         self.fill_food()
         observation = self.observation()
+        self.score += reward
         return observation, reward, done
 
-    def draw(self):
+    def draw(self, epoch=None):
         if self.done:
             head_color = (255, 0, 0)
         else:
@@ -284,16 +288,23 @@ class Game:
             pygame.draw.rect(self.screen, (0, 255, 0),
                              (food[0] * self.box_size, food[1] * self.box_size, self.box_size, self.box_size))
 
-        self.display_score()
+        self.display_score(epoch)
         pygame.display.update()
 
-    def display_score(self):
+    def display_score(self, epoch):
         my_font = pygame.font.SysFont('Comic Sans MS', 30)
-        text_surface = my_font.render('Food-eaten = ' + str(self.score), False, (255, 255, 255))
+        text_surface = my_font.render('Score = ' + str(round(self.score, 1)), False, (255, 255, 255))
         self.screen.blit(text_surface, (0, 0))
 
-        text_surface = my_font.render('Moves left = ' + str(self.moves_left), False, (255, 255, 255))
+        text_surface = my_font.render('Food-eaten = ' + str(self.food_eaten), False, (255, 255, 255))
         self.screen.blit(text_surface, (0, 20))
+
+        text_surface = my_font.render('Moves left = ' + str(self.moves_left), False, (255, 255, 255))
+        self.screen.blit(text_surface, (0, 40))
+
+        if epoch:
+            text_surface = my_font.render('Epoch = ' + str(epoch), False, (255, 255, 255))
+            self.screen.blit(text_surface, (0, 60))
 
 
 class Agent:
@@ -372,7 +383,12 @@ class Agent:
         self.memory.append(state)
 
     def save_model(self):
-        self.model.save(f"{MODEL_NAME}/model")
+        while True:
+            try:
+                self.model.save(f"{MODEL_NAME}/model")
+                return True
+            except OSError:
+                time.sleep(0.2)
 
     def load_model(self):
         if os.path.isfile(f"{MODEL_NAME}/model"):
@@ -612,7 +628,7 @@ def training():
                     States.append(state)
 
                 if render:
-                    Games[0].draw()
+                    Games[0].draw(episode+episode_offset)
                     time.sleep(RENDER_DELAY)
 
                 for ind_d in range(len(Games) - 1, -1, -1):
@@ -627,7 +643,7 @@ def training():
                         stats['episode'].append(episode + episode_offset)
                         stats['eps'].append(eps)
                         stats['score'].append(Scores[ind_d])
-                        stats['food_eaten'].append(Games[ind_d].score)
+                        stats['food_eaten'].append(Games[ind_d].food_eaten)
                         stats['moves'].append(step)
 
                         Scores.pop(ind_d)

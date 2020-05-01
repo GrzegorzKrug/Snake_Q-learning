@@ -37,8 +37,13 @@ if __name__ == "__main__":
                   learining_rate=settings.AGENT_LR,
                   dual_input=settings.DUAL_INPUT)
 
+    try:
+        episode_offset = np.load(f"{settings.MODEL_NAME}/last-episode-num.npy", allow_pickle=True)
+    except FileNotFoundError:
+        episode_offset = 0
+
     while not done:
-        game.draw()
+        game.draw(episode_offset)
         surface = pygame.display.get_surface()
         pygame.image.save(surface, path + f"/{step}.png")
         if settings.DUAL_INPUT:
@@ -51,6 +56,6 @@ if __name__ == "__main__":
         observation, reward, done = game.step(action=action)
         step += 1
 
-    game.draw()
+    game.draw(episode_offset)
     surface = pygame.display.get_surface()
     pygame.image.save(surface, path + f"/{step}.png")
