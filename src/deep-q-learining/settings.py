@@ -14,7 +14,7 @@ RENDER_DELAY = 0.02
 
 REPLAY_MEMORY_SIZE = 5 * full_game * SIM_COUNT  # 10 full games 3k each
 MIN_BATCH_SIZE = 500
-MAX_BATCH_SIZE = 2000
+MAX_BATCH_SIZE = 1000
 
 # Training method
 ALLOW_TRAIN = True

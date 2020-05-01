@@ -676,7 +676,7 @@ def plot_results():
     plt.subplot(411)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
     plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='s', s=10, alpha=0.5)
-    plt.plot(stats['episode'], moving_average(effectiveness), label='Average')
+    plt.plot(stats['episode'], moving_average(effectiveness), label='Average', linewidth=2)
     plt.xlabel("Epoch")
     plt.subplots_adjust(hspace=0.3)
     plt.legend(loc=2)
@@ -689,12 +689,12 @@ def plot_results():
             alpha=0.2, marker='s', c='m', s=10, label="Food_eaten"
     )
 
-    plt.plot(stats['episode'], moving_average(stats['food_eaten']), label='Average')
+    plt.plot(stats['episode'], moving_average(stats['food_eaten']), label='Average', linewidth=2)
     plt.legend(loc=2)
 
     plt.subplot(413)
     plt.scatter(stats['episode'], stats['moves'], label='Moves', color='b', marker='.', s=10, alpha=0.5)
-    plt.plot(stats['episode'], moving_average(stats['moves']), label='Average')
+    plt.plot(stats['episode'], moving_average(stats['moves']), label='Average', linewidth=2)
     plt.legend(loc=2)
 
     plt.subplot(414)
