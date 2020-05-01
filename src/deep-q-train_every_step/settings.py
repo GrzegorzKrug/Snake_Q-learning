@@ -17,8 +17,12 @@ RENDER_DELAY = 0.02
 REPLAY_MEMORY_SIZE = 10000
 MIN_BATCH_SIZE = 200
 MAX_BATCH_SIZE = 2000
+STEP_TRAINING = True
 
-MODEL_NAME = f"StepModel-30-StepTraining--View-{VIEW_LEN}--MB_{MIN_BATCH_SIZE}"
+model = "StepModel" if STEP_TRAINING else "EpochModel"
+DUAL_INPUT = True
+
+MODEL_NAME = f"{model}-30-StepTraining--View-{VIEW_LEN}--DI_{DUAL_INPUT}--MB_{MIN_BATCH_SIZE}"
 
 # Training params
 STATE_OFFSET = 0
