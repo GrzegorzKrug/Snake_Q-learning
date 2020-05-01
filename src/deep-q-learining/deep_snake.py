@@ -530,61 +530,61 @@ def training():
     emergency_break = False
 
     for episode in range(0, EPOCHS):
-        if not settings.STEP_TRAINING and ALLOW_TRAIN:
-            agent.train()
-            if not episode % 100 and episode > 0:
-                agent.save_model()
-                np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
+        try:
+            if not settings.STEP_TRAINING and ALLOW_TRAIN:
+                agent.train()
+                if not (episode + episode_offset) % 100 and episode > 0:
+                    agent.save_model()
+                    np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
 
-        Pred_sep.append(len(Predicts[0]))
+            Pred_sep.append(len(Predicts[0]))
 
-        if not episode % SHOW_EVERY:
-            render = True
-        else:
-            render = False
-
-        if episode == EPOCHS - 1 or emergency_break:
-            eps = 0
-            render = True
-            if SHOW_LAST:
-                input("Last agent is waiting...")
-        elif episode == 0 or not ALLOW_TRAIN:
-            eps = 0
-            render = True
-        elif episode < EPS_INTERVAL / 2:
-            eps = FIRST_EPS
-        elif episode < EPS_INTERVAL:
-            eps = 0.3
-        else:
-            try:
-                eps = next(eps_iter)
-            except StopIteration:
-                eps_iter = iter(np.linspace(INITIAL_SMALL_EPS, END_EPS, EPS_INTERVAL))
-                eps = next(eps_iter)
-
-        Games = []  # Close screen
-        States = []
-        for loop_ind in range(SIM_COUNT):
-            if loop_ind == 0:
-                game = Game(food_ammount=settings.FOOD_COUNT, render=render, view_len=VIEW_LEN,
-                            free_moves=settings.TIMEOUT)
+            if not episode % SHOW_EVERY:
+                render = True
             else:
-                game = Game(food_ammount=settings.FOOD_COUNT, render=False, view_len=VIEW_LEN,
-                            free_moves=settings.TIMEOUT)
-            state = game.reset()
-            Games.append(game)
-            States.append(state)
+                render = False
 
-        Dones = [False] * len(Games)
-        Scores = [0] * len(Games)
-        step = 0
-        All_score = []
-        All_steps = []
-        while len(Games):
-            try:
+            if episode == EPOCHS - 1 or emergency_break:
+                eps = 0
+                render = True
+                if SHOW_LAST:
+                    input("Last agent is waiting...")
+            elif episode == 0 or not ALLOW_TRAIN:
+                eps = 0
+                render = True
+            elif episode < EPS_INTERVAL / 2:
+                eps = FIRST_EPS
+            elif episode < EPS_INTERVAL:
+                eps = 0.3
+            else:
+                try:
+                    eps = next(eps_iter)
+                except StopIteration:
+                    eps_iter = iter(np.linspace(INITIAL_SMALL_EPS, END_EPS, EPS_INTERVAL))
+                    eps = next(eps_iter)
+
+            Games = []  # Close screen
+            States = []
+            for loop_ind in range(SIM_COUNT):
+                if loop_ind == 0:
+                    game = Game(food_ammount=settings.FOOD_COUNT, render=render, view_len=VIEW_LEN,
+                                free_moves=settings.TIMEOUT)
+                else:
+                    game = Game(food_ammount=settings.FOOD_COUNT, render=False, view_len=VIEW_LEN,
+                                free_moves=settings.TIMEOUT)
+                state = game.reset()
+                Games.append(game)
+                States.append(state)
+
+            Dones = [False] * len(Games)
+            Scores = [0] * len(Games)
+            step = 0
+            All_score = []
+            All_steps = []
+            while len(Games):
                 if settings.STEP_TRAINING and ALLOW_TRAIN:
                     agent.train()
-                    if not episode % 100 and episode > 0:
+                    if not (episode + episode_offset) % 100 and episode > 0:
                         agent.save_model()
                         np.save(f"{MODEL_NAME}/last-episode-num.npy", episode + episode_offset)
 
@@ -650,8 +650,8 @@ def training():
                         Games.pop(ind_d)
                         States.pop(ind_d)
                         Dones.pop(ind_d)
-            except KeyboardInterrupt:
-                emergency_break = True
+        except KeyboardInterrupt:
+            emergency_break = True
 
         print(f"Step-Ep[{episode + episode_offset:^7} of {EPOCHS + episode_offset}], "
               f"Eps: {eps:>1.3f} "
@@ -678,6 +678,9 @@ def moving_average(array, window_size=None):
     if not window_size or window_size and size > window_size:
         window_size = size // 10
 
+    if window_size > 1000:
+        window_size = 1000
+
     output = []
     for sample_num, arr_element in enumerate(array):
         arr_slice = array[sample_num-window_size:sample_num]
@@ -698,7 +701,7 @@ def plot_results():
 
     plt.subplot(411)
     effectiveness = [food / moves for food, moves in zip(stats['food_eaten'], stats['moves'])]
-    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='g', marker='s', s=10, alpha=0.5)
+    plt.scatter(stats['episode'], effectiveness, label='Effectiveness', color='b', marker='s', s=10, alpha=0.5)
     plt.plot(stats['episode'], moving_average(effectiveness), label='Average', linewidth=3)
     plt.xlabel("Epoch")
     plt.subplots_adjust(hspace=0.3)
@@ -709,7 +712,7 @@ def plot_results():
     plt.scatter(
             np.array(stats['episode']),
             stats['food_eaten'],
-            alpha=0.2, marker='s', c='m', s=10, label="Food_eaten"
+            alpha=0.2, marker='s', c='b', s=10, label="Food_eaten"
     )
 
     plt.plot(stats['episode'], moving_average(stats['food_eaten']), label='Average', linewidth=3)

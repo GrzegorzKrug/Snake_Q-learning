@@ -59,3 +59,4 @@ if __name__ == "__main__":
     game.draw(episode_offset)
     surface = pygame.display.get_surface()
     pygame.image.save(surface, path + f"/{step}.png")
+    print(f"Game recorded: {path}")
