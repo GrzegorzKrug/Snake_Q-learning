@@ -1,12 +1,13 @@
-# About Snake Q-learning
+# About repository
 Learning repository.
 Target is to implement q-learning in different environment than gym-ai.
+
 Target has been achieved both in q-learning and deep q-learning.
 
 I learned here how to use models with more inputs than one, define custom models and connections
 I used 2 techniques of training:
-* epoch, training every epoch
-* step, training model every step he made
+* `epoch`, training every epoch
+* `step`, training model every step he made
 
 Step method, is more efficient, model learns quicker and we can teach him all samples he gained from last move.
 
