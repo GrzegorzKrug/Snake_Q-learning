@@ -539,7 +539,7 @@ def training():
 
             Pred_sep.append(len(Predicts[0]))
 
-            if not episode % SHOW_EVERY:
+            if not (episode + episode_offset) % SHOW_EVERY:
                 render = True
             else:
                 render = False
@@ -552,10 +552,10 @@ def training():
             elif episode == 0 or not ALLOW_TRAIN:
                 eps = 0
                 render = True
-            elif episode < EPS_INTERVAL / 2:
+            elif episode < EPS_INTERVAL / 4:
                 eps = FIRST_EPS
-            elif episode < EPS_INTERVAL:
-                eps = 0.3
+            # elif episode < EPS_INTERVAL:
+            #     eps = 0.3
             else:
                 try:
                     eps = next(eps_iter)
@@ -685,7 +685,7 @@ def moving_average(array, window_size=None):
     for sample_num, arr_element in enumerate(array):
         arr_slice = array[sample_num-window_size:sample_num]
         if len(arr_slice) < window_size:
-            output.append(0)
+            output.append(np.mean(array[0:sample_num+1]))
         else:
             output.append(
                     np.mean(arr_slice)
