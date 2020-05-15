@@ -11,6 +11,7 @@ I used 2 techniques of training:
 
 Step method, is more efficient, model learns quicker and we can teach him all samples he gained from last move.
 
+Convolutional layers would greatly improve deep learning.
 
 # Table of Contents
 1. [Environment](#env)
